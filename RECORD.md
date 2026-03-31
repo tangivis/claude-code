@@ -297,8 +297,8 @@ Claude Code 是 Anthropic 官方的 AI 辅助编码 CLI 工具，允许用户在
 src/ 目录:          2,797 个文件
 一级子目录:          44 个
 packages/ 目录:      8 个 workspace 包
-工具数量:            55+ 个
-命令数量:            90+ 个
+工具数量:            52 个
+命令数量:            92 个
 核心文件最大:         REPL.tsx (~5000 行), claude.ts (~3400 行)
 ```
 
@@ -328,13 +328,13 @@ claude-code/
 │   ├── context.ts                # 上下文构建
 │   ├── history.ts                # 对话历史
 │   │
-│   ├── tools/                    # 55 个工具实现
-│   ├── commands/                 # 90+ 个斜杠命令
+│   ├── tools/                    # 52 个工具实现
+│   ├── commands/                 # 92 个斜杠命令
 │   ├── components/               # React 组件 (34 目录)
 │   ├── screens/                  # 主屏幕 (REPL, Doctor)
 │   ├── services/                 # 服务层 (26 目录)
 │   ├── utils/                    # 工具函数 (34 目录)
-│   ├── ink/                      # 自定义 Ink 框架 (48 文件)
+│   ├── ink/                      # 自定义 Ink 框架 (104 文件)
 │   ├── state/                    # 状态管理
 │   ├── types/                    # 类型定义
 │   ├── skills/                   # Skills 加载
@@ -382,7 +382,7 @@ claude-code/
 | `screens/REPL.tsx` | ~600 KB | 交互式主屏幕 |
 | `main.tsx` | 234 KB | CLI 入口与定义 |
 | `services/api/claude.ts` | 126 KB | API 客户端 |
-| `ink/ink.tsx` | 77 KB | 终端 UI 渲染器 |
+| `ink/ink.tsx` | 77 KB | 终端 UI 渲染器 (ink/ 目录共 104 个文件) |
 | `query.ts` | 69 KB | 查询引擎核心 |
 | `QueryEngine.ts` | 48 KB | 上层编排器 |
 | `commands.ts` | 25 KB | 命令注册表 |
@@ -1581,7 +1581,7 @@ ANSI 转义序列
 
 ### 24.2 核心文件
 
-**目录**: `src/ink/` (48 文件)
+**目录**: `src/ink/` (104 文件)
 
 | 文件 | 说明 |
 |------|------|
@@ -2148,7 +2148,7 @@ Repo 版本新增了 6 个命令族：
 
 # 附录
 
-## 附录 A：关键文件索引
+## 附录 A：关键文件索引 (52 个工具, 92 个命令)
 
 ### 入口与启动
 
