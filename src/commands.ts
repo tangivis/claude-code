@@ -115,11 +115,10 @@ const forkCmd = feature('FORK_SUBAGENT')
       require('./commands/fork/index.js') as typeof import('./commands/fork/index.js')
     ).default
   : null
-const buddy = feature('BUDDY')
-  ? (
-      require('./commands/buddy/index.js') as typeof import('./commands/buddy/index.js')
-    ).default
-  : null
+// BUDDY 强制启用（bun:bundle feature() 在 dev 模式永远返回 false）
+const buddy = (
+    require('./commands/buddy/index.js') as typeof import('./commands/buddy/index.js')
+  ).default
 /* eslint-enable @typescript-eslint/no-require-imports */
 import thinkback from './commands/thinkback/index.js'
 import thinkbackPlay from './commands/thinkback-play/index.js'
