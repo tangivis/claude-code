@@ -1026,6 +1026,59 @@ async function* queryModel(
   StreamEvent | AssistantMessage | SystemAPIErrorMessage,
   void
 > {
+  // ===== MiniMax Provider 路由 =====
+  // 当 CLAUDE_CODE_USE_MINIMAX=1 时，跳过整个 Anthropic 调用链，
+  // 走 MiniMax 的 OpenAI 兼容 API，通过 adapter 转换为 Anthropic 事件格式。
+  //
+  // 原理：MiniMax 使用 OpenAI 兼容 API，但 Claude Code 下游期望 Anthropic 的
+  // BetaRawMessageStreamEvent 格式。adapter 负责格式转换，使得下游代码
+  //（工具执行、UI 渲染、消息管理）完全不需要修改。
+  if (getAPIProvider() === 'minimax') {
+    const { streamMinimaxRequest } = await import('./minimax/client.js')
+
+    // 从内部 Message 类型提取 API 消息
+    // Message 类型有 .message 属性包含 { role, content }
+    const apiMessages: Array<{ role: string; content: unknown }> = []
+    for (const m of messages) {
+      if ('message' in m && (m as any).message?.role) {
+        apiMessages.push({
+          role: (m as any).message.role,
+          content: (m as any).message.content,
+        })
+      }
+    }
+
+    // 提取工具的 JSON schema（每个 Tool 对象有 inputJSONSchema 属性）
+    const apiTools = tools
+      .filter(t => !t.isMcp) // 跳过 MCP 工具（MiniMax 不支持）
+      .map(t => ({
+        name: t.name,
+        description: t.name,
+        input_schema: (t as any).inputJSONSchema || { type: 'object', properties: {} },
+      }))
+
+    const params: Record<string, unknown> = {
+      model: options.model,
+      messages: apiMessages,
+      system: systemPrompt,
+      tools: apiTools.length > 0 ? apiTools : undefined,
+      max_tokens: 4096,
+    }
+
+    try {
+      for await (const event of streamMinimaxRequest(params, signal)) {
+        yield event as unknown as StreamEvent
+      }
+    } catch (error) {
+      yield getAssistantMessageFromError(
+        error instanceof Error ? error : new Error(String(error)),
+        options.model,
+      )
+    }
+    return
+  }
+  // ===== End MiniMax 路由 =====
+
   // Check cheap conditions first — the off-switch await blocks on GrowthBook
   // init (~10ms). For non-Opus models (haiku, sonnet) this skips the await
   // entirely. Subscribers don't hit this path at all.
