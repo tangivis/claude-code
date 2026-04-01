@@ -98,6 +98,13 @@ export async function getAnthropicClient({
   fetchOverride?: ClientOptions['fetch']
   source?: string
 }): Promise<Anthropic> {
+  // ===== MiniMax Provider（最高优先级）=====
+  // 在任何认证/OAuth 逻辑之前拦截，直接返回 MiniMax 代理客户端
+  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_MINIMAX)) {
+    const { createMinimaxProxy } = await import('./minimax/proxy.js')
+    return createMinimaxProxy()
+  }
+
   const containerId = process.env.CLAUDE_CODE_CONTAINER_ID
   const remoteSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID
   const clientApp = process.env.CLAUDE_AGENT_SDK_CLIENT_APP

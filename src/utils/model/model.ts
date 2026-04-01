@@ -90,6 +90,10 @@ export function getUserSpecifiedModelSetting(): ModelSetting | undefined {
  * @returns The resolved model name to use
  */
 export function getMainLoopModel(): ModelName {
+  // MiniMax provider: 返回固定模型名
+  if (getAPIProvider() === 'minimax') {
+    return (process.env.MINIMAX_MODEL || 'MiniMax-M2.7') as ModelName
+  }
   const model = getUserSpecifiedModelSetting()
   if (model !== undefined && model !== null) {
     return parseUserSpecifiedModel(model)
