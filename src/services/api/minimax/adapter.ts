@@ -106,10 +106,12 @@ export type StreamState = {
   started: boolean         // message_start 是否已发送
   toolCallIds: Map<number, string>  // tool_call index → id 映射
   toolCallNames: Map<number, string> // tool_call index → name 映射
+  inThinkBlock: boolean    // 是否在 <think>...</think> 块内
+  hasYieldedText: boolean  // 是否已经产出过 text content_block_start
 }
 
 export function createStreamState(): StreamState {
-  return { blockIndex: 0, started: false, toolCallIds: new Map(), toolCallNames: new Map() }
+  return { blockIndex: 0, started: false, toolCallIds: new Map(), toolCallNames: new Map(), inThinkBlock: false, hasYieldedText: false }
 }
 
 // ============================================================
@@ -289,8 +291,10 @@ export function parseOpenAIResponse(response: OpenAIChatResponse): Array<Record<
 
   let blockIndex = 0
 
-  // 2. Text content
-  if (message.content) {
+  // 2. Text content (strip <think>...</think> reasoning blocks from MiniMax)
+  let textContent = message.content || ''
+  textContent = textContent.replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim()
+  if (textContent) {
     events.push({
       type: 'content_block_start',
       index: blockIndex,
@@ -299,7 +303,7 @@ export function parseOpenAIResponse(response: OpenAIChatResponse): Array<Record<
     events.push({
       type: 'content_block_delta',
       index: blockIndex,
-      delta: { type: 'text_delta', text: message.content },
+      delta: { type: 'text_delta', text: textContent },
     })
     events.push({ type: 'content_block_stop', index: blockIndex })
     blockIndex++
@@ -403,19 +407,43 @@ export function parseOpenAIStreamChunk(
 
   // Text content delta
   if (delta.content) {
-    // 如果是第一次收到文本，先发 content_block_start
-    if (state.blockIndex === 0 && !events.some(e => e.type === 'content_block_start')) {
+    // MiniMax M2.7 会返回 <think>...</think> 标签包裹的推理内容
+    // 过滤掉这些内容，只保留实际回复
+    let text = delta.content
+    // 移除 <think> 标签及其内容（可能跨多个 chunk，用状态跟踪）
+    if (text.includes('<think>')) {
+      state.inThinkBlock = true
+    }
+    if (state.inThinkBlock) {
+      const endIdx = text.indexOf('</think>')
+      if (endIdx !== -1) {
+        text = text.slice(endIdx + '</think>'.length)
+        state.inThinkBlock = false
+      } else {
+        text = '' // 仍在 think block 内，丢弃
+      }
+    }
+    // 清理开头的换行（think block 之后可能有多余换行）
+    if (text && !state.hasYieldedText) {
+      text = text.replace(/^\n+/, '')
+    }
+
+    if (text) {
+      // 如果是第一次收到文本，先发 content_block_start
+      if (!state.hasYieldedText) {
+        events.push({
+          type: 'content_block_start',
+          index: state.blockIndex,
+          content_block: { type: 'text', text: '' },
+        })
+        state.hasYieldedText = true
+      }
       events.push({
-        type: 'content_block_start',
+        type: 'content_block_delta',
         index: state.blockIndex,
-        content_block: { type: 'text', text: '' },
+        delta: { type: 'text_delta', text },
       })
     }
-    events.push({
-      type: 'content_block_delta',
-      index: state.blockIndex,
-      delta: { type: 'text_delta', text: delta.content },
-    })
   }
 
   // Tool calls delta

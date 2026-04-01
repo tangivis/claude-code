@@ -97,8 +97,8 @@ describe('MiniMax API integration', () => {
 
     try {
       for await (const event of streamMinimaxRequest({
-        messages: [{ role: 'user', content: 'say hi' }],
-        max_tokens: 20,
+        messages: [{ role: 'user', content: 'say hi in one word, no thinking' }],
+        max_tokens: 100,
       }, controller.signal)) {
         events.push(event)
       }

@@ -1066,9 +1066,64 @@ async function* queryModel(
     }
 
     try {
+      // 收集流式事件，同时 yield 给上层
+      const contentBlocks: unknown[] = []
+      let stopReason = 'end_turn'
+
       for await (const event of streamMinimaxRequest(params, signal)) {
         yield event as unknown as StreamEvent
+
+        // 收集 content blocks 用于组装最终 AssistantMessage
+        const ev = event as Record<string, unknown>
+        if (ev.type === 'content_block_delta') {
+          const delta = ev.delta as Record<string, unknown>
+          if (delta.type === 'text_delta') {
+            const idx = ev.index as number
+            if (!contentBlocks[idx]) contentBlocks[idx] = { type: 'text', text: '' }
+            ;(contentBlocks[idx] as any).text += delta.text
+          } else if (delta.type === 'input_json_delta') {
+            const idx = ev.index as number
+            if (contentBlocks[idx]) {
+              ;(contentBlocks[idx] as any).input = ((contentBlocks[idx] as any).input || '') + delta.partial_json
+            }
+          }
+        } else if (ev.type === 'content_block_start') {
+          const block = ev.content_block as Record<string, unknown>
+          const idx = ev.index as number
+          if (block.type === 'tool_use') {
+            contentBlocks[idx] = { type: 'tool_use', id: block.id, name: block.name, input: '' }
+          }
+        } else if (ev.type === 'message_delta') {
+          const delta = ev.delta as Record<string, unknown>
+          if (delta.stop_reason) stopReason = delta.stop_reason as string
+        }
       }
+
+      // 解析 tool_use blocks 的 input JSON
+      for (const block of contentBlocks) {
+        if (block && (block as any).type === 'tool_use' && typeof (block as any).input === 'string') {
+          try { (block as any).input = JSON.parse((block as any).input) } catch { (block as any).input = {} }
+        }
+      }
+
+      // 组装并 yield 最终的 AssistantMessage
+      const assistantMessage: AssistantMessage = {
+        type: 'assistant',
+        message: {
+          role: 'assistant',
+          content: contentBlocks.filter(Boolean) as any[],
+          model: options.model,
+          id: `minimax-${Date.now()}`,
+          type: 'message',
+          stop_reason: stopReason as any,
+          usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+        },
+        costUSD: 0,
+        durationMs: 0,
+        ttftMs: 0,
+      }
+      yield assistantMessage as AssistantMessage
+
     } catch (error) {
       yield getAssistantMessageFromError(
         error instanceof Error ? error : new Error(String(error)),
