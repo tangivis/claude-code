@@ -1,7 +1,7 @@
-import { getGlobalConfig, updateGlobalConfig } from '../../utils/config.js'
+import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js'
 import { getCompanion, companionUserId, roll } from '../../buddy/companion.js'
 import { renderSprite, renderFace } from '../../buddy/sprites.js'
-import { RARITY_STARS, RARITY_COLORS } from '../../buddy/types.js'
+import { RARITY_STARS } from '../../buddy/types.js'
 import type { LocalCommandModule } from '../../types/command.js'
 
 const buddyCommand: LocalCommandModule = {
@@ -38,7 +38,6 @@ const buddyCommand: LocalCommandModule = {
       const sprite = renderSprite(bones)
       const stars = RARITY_STARS[bones.rarity]
 
-      // Generate soul (name + personality)
       const names: Record<string, string[]> = {
         duck: ['Quacky', 'Waddles', 'Ducky', 'Puddles'],
         goose: ['Honk', 'Goosie', 'Noodle', 'Cobra'],
@@ -64,9 +63,10 @@ const buddyCommand: LocalCommandModule = {
       const name = speciesNames[inspirationSeed % speciesNames.length]!
       const personality = `A ${bones.rarity} ${bones.species} who loves debugging`
 
-      await updateGlobalConfig({
+      saveGlobalConfig(c => ({
+        ...c,
         companion: { name, personality, hatchedAt: Date.now() },
-      })
+      }))
 
       return {
         type: 'local-jsx' as const,
@@ -100,17 +100,17 @@ const buddyCommand: LocalCommandModule = {
     }
 
     if (subcommand === 'mute') {
-      await updateGlobalConfig({ companionMuted: true })
+      saveGlobalConfig(c => ({ ...c, companionMuted: true }))
       return { type: 'local-jsx' as const, jsx: null, message: 'Buddy muted. Run /buddy unmute to bring them back.' }
     }
 
     if (subcommand === 'unmute') {
-      await updateGlobalConfig({ companionMuted: false })
+      saveGlobalConfig(c => ({ ...c, companionMuted: false }))
       return { type: 'local-jsx' as const, jsx: null, message: 'Buddy unmuted! 🎉' }
     }
 
     if (subcommand === 'release') {
-      await updateGlobalConfig({ companion: undefined })
+      saveGlobalConfig(c => ({ ...c, companion: undefined as any }))
       return { type: 'local-jsx' as const, jsx: null, message: '👋 Buddy released. Run /buddy to hatch a new one.' }
     }
 
@@ -123,7 +123,7 @@ const buddyCommand: LocalCommandModule = {
       if (!config.companion) {
         return { type: 'local-jsx' as const, jsx: null, message: 'No buddy yet! Run /buddy to hatch one.' }
       }
-      await updateGlobalConfig({ companion: { ...config.companion, name: newName } })
+      saveGlobalConfig(c => ({ ...c, companion: { ...c.companion!, name: newName } }))
       return { type: 'local-jsx' as const, jsx: null, message: `Buddy renamed to ${newName}!` }
     }
 
