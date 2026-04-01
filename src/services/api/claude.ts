@@ -1107,8 +1107,10 @@ async function* queryModel(
       }
 
       // 组装并 yield 最终的 AssistantMessage
+      // Message 类型要求 uuid 字段
       const assistantMessage: AssistantMessage = {
         type: 'assistant',
+        uuid: randomUUID(),
         message: {
           role: 'assistant',
           content: contentBlocks.filter(Boolean) as any[],
