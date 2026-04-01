@@ -127,6 +127,22 @@ export function createStreamState(): StreamState {
  *
  * input_schema 和 parameters 内容完全相同，只是外层包装不同。
  */
+/**
+ * 构建完整的 Anthropic 兼容 usage 对象。
+ * Anthropic SDK 期望所有字段都存在，缺少会导致 "undefined is not an object" 错误。
+ */
+function makeUsage(input = 0, output = 0) {
+  return {
+    input_tokens: input,
+    output_tokens: output,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+    server_tool_use: { web_search_requests: 0, web_fetch_requests: 0 },
+    service_tier: 'standard' as const,
+    cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 0 },
+  }
+}
+
 export function convertToolsToOpenAI(
   tools: AnthropicTool[] | undefined,
 ): OpenAITool[] {
@@ -280,12 +296,7 @@ export function parseOpenAIResponse(response: OpenAIChatResponse): Array<Record<
       role: 'assistant',
       model: response.model,
       content: [],
-      usage: {
-        input_tokens: response.usage?.prompt_tokens ?? 0,
-        output_tokens: 0,
-        cache_creation_input_tokens: 0,
-        cache_read_input_tokens: 0,
-      },
+      usage: makeUsage(response.usage?.prompt_tokens ?? 0, 0),
     },
   })
 
@@ -348,9 +359,7 @@ export function parseOpenAIResponse(response: OpenAIChatResponse): Array<Record<
     delta: {
       stop_reason: mapFinishReason(choice.finish_reason),
     },
-    usage: {
-      output_tokens: response.usage?.completion_tokens ?? 0,
-    },
+    usage: makeUsage(0, response.usage?.completion_tokens ?? 0),
   })
 
   // 5. message_stop
@@ -392,12 +401,7 @@ export function parseOpenAIStreamChunk(
         role: 'assistant',
         model: chunk.model,
         content: [],
-        usage: {
-          input_tokens: chunk.usage?.prompt_tokens ?? 0,
-          output_tokens: 0,
-          cache_creation_input_tokens: 0,
-          cache_read_input_tokens: 0,
-        },
+        usage: makeUsage(chunk.usage?.prompt_tokens ?? 0, 0),
       },
     })
     state.started = true
@@ -501,9 +505,7 @@ export function parseOpenAIStreamChunk(
       delta: {
         stop_reason: mapFinishReason(choice.finish_reason),
       },
-      usage: {
-        output_tokens: chunk.usage?.completion_tokens ?? 0,
-      },
+      usage: makeUsage(0, chunk.usage?.completion_tokens ?? 0),
     })
 
     // message_stop
