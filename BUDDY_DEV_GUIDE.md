@@ -425,30 +425,214 @@ curl -s https://api.minimax.chat/v1/text/chatcompletion_v2 \
 
 ---
 
-## 7. 后续计划
+## 7. MiniMax Provider 集成（已完成）
 
-| 任务 | 难度 | 说明 |
-|------|------|------|
-| Buddy 用 MiniMax 生成性格 | 中 | 替换硬编码的名字/性格为 MiniMax API 调用 |
-| MiniMax 替代主模型 | 高 | 需要适配 Anthropic→OpenAI 消息格式转换层 |
-| Buddy 对话能力 | 中 | 让宠物用 MiniMax 回应用户（独立于主对话） |
-| 精灵图动画优化 | 低 | 已有 3 帧动画，可添加更多交互动效 |
+### 7.1 设计思路
 
-### 接入 MiniMax 的技术难点
+**问题**：Claude Code 的 API 层（3000+ 行的 `claude.ts`）深度绑定了 Anthropic SDK 格式。直接替换意味着重写大量代码。
 
-Claude Code 的 API 层（`src/services/api/claude.ts`）深度绑定了 Anthropic SDK 格式：
-- Anthropic: `content: [{type: 'tool_use', id, name, input}]`
-- OpenAI/MiniMax: `tool_calls: [{id, type: 'function', function: {name, arguments}}]`
+**解决方案**：**Adapter 模式**——在 API 调用的最上层拦截，当检测到 MiniMax provider 时，走一条完全独立的请求/响应路径。关键洞察是：
 
-需要写一个格式转换层（adapter），或者直接在 API 客户端加 MiniMax provider。
+```
+Claude Code 下游代码（工具执行、UI 渲染、消息管理）
+  ↑ 只关心 Anthropic 的 BetaRawMessageStreamEvent 格式
+  ↑ 不关心事件是从 Anthropic API 还是 MiniMax API 来的
+```
+
+所以只要把 MiniMax 的 OpenAI 格式响应**伪装成** Anthropic 格式，下游完全不需要改。
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Claude Code    │     │   Adapter       │     │  MiniMax API    │
+│  (claude.ts)    │ ←── │   (adapter.ts)  │ ←── │  (OpenAI 格式)  │
+│                 │     │                 │     │                 │
+│ 期望 Anthropic  │     │ OpenAI → Anthro │     │ 返回 OpenAI    │
+│ 事件格式        │     │ 格式转换        │     │ 事件格式        │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+### 7.2 格式转换细节
+
+**工具定义转换**（`convertToolsToOpenAI`）：
+
+```
+Anthropic:  { name, description, input_schema: {...} }
+     ↓
+OpenAI:     { type:'function', function:{ name, description, parameters: {...} } }
+```
+
+`input_schema` 和 `parameters` 内容完全相同，只是外层包装不同。
+
+**消息转换**（`convertMessagesToOpenAI`）：
+
+```
+Anthropic content blocks:
+  [{ type:'text', text:'...' }, { type:'tool_use', id, name, input }]
+     ↓
+OpenAI message:
+  { content:'...', tool_calls:[{ id, function:{ name, arguments:'...' } }] }
+
+Anthropic tool_result:
+  { role:'user', content:[{ type:'tool_result', tool_use_id, content }] }
+     ↓
+OpenAI tool message:
+  { role:'tool', tool_call_id, content }
+```
+
+**流式事件转换**（`parseOpenAIStreamChunk`）：
+
+```
+OpenAI SSE:
+  data: {"choices":[{"delta":{"content":"Hello"}}]}
+  data: {"choices":[{"delta":{"tool_calls":[...]}}]}
+  data: {"choices":[{"finish_reason":"stop"}]}
+     ↓
+Anthropic events:
+  { type:'message_start', message:{...} }
+  { type:'content_block_start', index:0, content_block:{type:'text'} }
+  { type:'content_block_delta', index:0, delta:{type:'text_delta', text:'Hello'} }
+  { type:'content_block_stop', index:0 }
+  { type:'message_delta', delta:{stop_reason:'end_turn'} }
+  { type:'message_stop' }
+```
+
+**stop_reason 映射**：
+
+| OpenAI finish_reason | Anthropic stop_reason |
+|----------------------|-----------------------|
+| `stop` | `end_turn` |
+| `length` | `max_tokens` |
+| `tool_calls` | `tool_use` |
+| `content_filter` | `end_turn` |
+
+### 7.3 代码结构
+
+```
+src/services/api/minimax/
+├── adapter.ts          # 格式转换层（320 行）
+│   ├── convertToolsToOpenAI()       — 工具定义转换
+│   ├── convertMessagesToOpenAI()     — 消息转换
+│   ├── convertSystemPromptToOpenAI() — 系统提示词转换
+│   ├── parseOpenAIResponse()         — 非流式响应 → Anthropic 事件
+│   └── parseOpenAIStreamChunk()      — 流式 chunk → Anthropic 事件
+│
+├── client.ts           # MiniMax API 客户端（180 行）
+│   ├── getMinimaxConfig()           — 从环境变量读配置
+│   ├── buildMinimaxRequest()        — 构建请求体
+│   ├── streamMinimaxRequest()       — 流式请求（核心入口）
+│   ├── callMinimaxNonStreaming()    — 非流式请求
+│   └── parseSSEStream()             — SSE 文本流解析器
+│
+├── adapter.test.ts     # 16 个单元测试
+└── client.test.ts      # 7 个集成测试（含真实 API 调用）
+```
+
+### 7.4 修改的已有文件
+
+**`src/utils/model/providers.ts`**（2 行改动）：
+
+```diff
+-export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry'
++export type APIProvider = 'firstParty' | 'bedrock' | 'vertex' | 'foundry' | 'minimax'
+
+ export function getAPIProvider(): APIProvider {
+-  return isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
++  return isEnvTruthy(process.env.CLAUDE_CODE_USE_MINIMAX)
++    ? 'minimax'
++    : isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)
+```
+
+**`src/services/api/claude.ts`**（在 `queryModel()` 开头插入 ~45 行）：
+
+在 `queryModel()` 函数最开始检查 `getAPIProvider() === 'minimax'`，如果是就：
+1. 动态导入 `minimax/client.ts`
+2. 从内部 Message 类型提取 API 消息
+3. 提取工具的 JSON schema
+4. 调用 `streamMinimaxRequest()` 获取 Anthropic 格式事件流
+5. yield 所有事件给下游
+6. return（跳过整个 Anthropic 调用链）
+
+### 7.5 TDD 测试覆盖
+
+**adapter.test.ts**（16 个测试）：
+
+| 测试组 | 数量 | 覆盖内容 |
+|--------|------|---------|
+| `convertToolsToOpenAI` | 3 | 正常转换、空数组、undefined |
+| `convertMessagesToOpenAI` | 4 | 简单消息、text blocks、tool_use、tool_result |
+| `convertSystemPromptToOpenAI` | 3 | 字符串、数组 blocks、空值 |
+| `parseOpenAIResponse` | 3 | 纯文本、tool_calls、finish_reason 映射 |
+| `parseOpenAIStreamChunk` | 3 | text delta、tool_calls delta、finish chunk |
+
+**client.test.ts**（7 个测试）：
+
+| 测试组 | 数量 | 覆盖内容 |
+|--------|------|---------|
+| `getMinimaxConfig` | 1 | 环境变量读取 |
+| `buildMinimaxRequest` | 3 | 基础请求、带工具、空工具 |
+| `MiniMax API integration` | 3 | 非流式调用、流式调用、tool calling（需要真实 API Key） |
+
+**运行测试**：
+```bash
+# 运行所有 MiniMax 测试
+bun test src/services/api/minimax/
+
+# 输出：23 pass, 0 fail
+```
+
+### 7.6 如何使用
+
+```bash
+# 进入 worktree 目录
+cd /home/keitenarch/workspace/test_claude/claude-code-buddy
+
+# 设置环境变量
+export CLAUDE_CODE_USE_MINIMAX=1          # 启用 MiniMax provider
+export MINIMAX_API_KEY="你的key"           # MiniMax API Key
+
+# 可选：自定义模型和端点
+export MINIMAX_MODEL="MiniMax-M2.7"        # 默认值
+export MINIMAX_BASE_URL="https://api.minimax.chat/v1"  # 默认值
+
+# 管道模式测试
+echo "你好" | bun run src/entrypoints/cli.tsx -p
+
+# 交互模式
+bun run dev
+```
+
+**验证确实在用 MiniMax**：在交互模式中问"你是什么模型？"，应该回答自己是 MiniMax 而不是 Claude。
 
 ---
 
-## 附录：文件变更清单
+## 8. 后续计划
+
+| 任务 | 难度 | 状态 | 说明 |
+|------|------|------|------|
+| ~~MiniMax 替代主模型~~ | ~~高~~ | ✅ 已完成 | adapter 模式 + 23 个测试 |
+| Buddy 用 MiniMax 生成性格 | 中 | 待做 | 替换硬编码的名字/性格为 MiniMax API 调用 |
+| Buddy 对话能力 | 中 | 待做 | 让宠物用 MiniMax 回应用户 |
+| 支持更多 MiniMax 模型 | 低 | 待做 | M2.5-highspeed 等 |
+| 精灵图动画优化 | 低 | 待做 | 添加更多交互动效 |
+
+---
+
+## 附录：完整文件变更清单
 
 ```
-modified:   src/entrypoints/cli.tsx        # 开启 BUDDY feature flag
-modified:   src/commands/buddy/index.ts    # 替换 stub 为命令注册
-new file:   src/commands/buddy/buddy.tsx   # 命令实现（160 行）
-new file:   BUDDY_DEV_GUIDE.md            # 本文档
+# BUDDY 功能
+modified:   src/entrypoints/cli.tsx               # 开启 BUDDY feature flag
+modified:   src/commands/buddy/index.ts           # 替换 stub 为命令注册
+new file:   src/commands/buddy/buddy.tsx          # 命令实现（160 行）
+
+# MiniMax Provider
+new file:   src/services/api/minimax/adapter.ts   # 格式转换层（320 行）
+new file:   src/services/api/minimax/client.ts    # API 客户端（180 行）
+new file:   src/services/api/minimax/adapter.test.ts  # 16 个单元测试
+new file:   src/services/api/minimax/client.test.ts   # 7 个集成测试
+modified:   src/utils/model/providers.ts          # 添加 'minimax' provider
+modified:   src/services/api/claude.ts            # queryModel() 添加 MiniMax 路由
+
+# 文档
+new file:   BUDDY_DEV_GUIDE.md                    # 本文档
 ```
