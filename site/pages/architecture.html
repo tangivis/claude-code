@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>整体架构 - Claude Code 源码分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="../" class="nav-logo"><span class="logo-icon">&gt;_</span> Claude Code 源码分析</a>
+    <ul class="nav-links">
+      <li><a href="../">首页</a></li>
+      <li><a href="architecture.html" class="active">架构</a></li>
+      <li><a href="agent-loop.html">Agent Loop</a></li>
+      <li><a href="tools.html">工具系统</a></li>
+      <li><a href="permissions.html">权限系统</a></li>
+      <li><a href="agents.html">多智能体</a></li>
+      <li><a href="context.html">上下文管理</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-with-sidebar">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">本章内容</div>
+      <a href="#overview" class="sidebar-link active">概览</a>
+      <a href="#runtime" class="sidebar-link">运行时 & 构建</a>
+      <a href="#bootstrap" class="sidebar-link">启动流程</a>
+      <a href="#layers" class="sidebar-link">架构分层</a>
+      <a href="#state" class="sidebar-link">状态管理</a>
+      <a href="#ui" class="sidebar-link">UI 层</a>
+      <a href="#feature-flags" class="sidebar-link">Feature Flags</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">章节导航</div>
+      <a href="agent-loop.html" class="sidebar-link">下一章: Agent Loop &rarr;</a>
+    </div>
+  </aside>
+
+  <main class="page-main">
+    <div class="section-tag">Chapter 01</div>
+    <h1>整体架构</h1>
+    <p>Claude Code 是一个用 TypeScript 编写、运行在 Bun 上的终端 AI 编程助手。它的架构分为几个清晰的层次。</p>
+
+    <h2 id="overview">技术栈概览</h2>
+    <div class="chapters-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 2rem;">
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-blue); font-size: 0.95rem;">语言 & 运行时</h3>
+        <p>TypeScript + Bun (非 Node.js)。ESM 模块系统，TSX 配合 react-jsx transform。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-green); font-size: 0.95rem;">构建输出</h3>
+        <p>单文件 bundle (dist/cli.js, ~25MB)。<code style="color: var(--accent-gold);">bun build</code> 直接打包。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-gold); font-size: 0.95rem;">Monorepo</h3>
+        <p>Bun workspaces，内部包在 <code>packages/</code> 目录，通过 <code>workspace:*</code> 解析。</p>
+      </div>
+    </div>
+
+    <h2 id="runtime">运行时 & 构建系统</h2>
+    <p>Claude Code 完全基于 <strong>Bun</strong> 运行时，而非 Node.js。所有导入、构建和执行都使用 Bun 的原生 API。</p>
+
+    <div class="code-block">
+<span class="comment"># 安装依赖</span>
+bun install
+
+<span class="comment"># 开发模式 (直接执行)</span>
+bun run dev    <span class="comment"># 等价于: bun run src/entrypoints/cli.tsx</span>
+
+<span class="comment"># 构建 (输出 dist/cli.js, ~25MB)</span>
+bun build src/entrypoints/cli.tsx --outdir dist --target bun
+
+<span class="comment"># Pipe 模式</span>
+echo "say hello" | bun run src/entrypoints/cli.tsx -p
+    </div>
+
+    <div class="info-box">
+      <strong>为什么选 Bun？</strong> Bun 提供更快的启动时间、原生 TypeScript 支持、内置打包器，以及与 Node.js 兼容的 API。对于一个需要快速启动的 CLI 工具来说，这些都是关键优势。
+    </div>
+
+    <h2 id="bootstrap">启动引导流程</h2>
+    <p>从用户执行 <code>claude</code> 命令到进入交互界面，经历以下步骤：</p>
+
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div class="flow-content">
+          <h4>cli.tsx — 运行时 Polyfills</h4>
+          <p>注入 <code>feature()</code> 函数（始终返回 false，禁用所有内部功能标志），设置 <code>globalThis.MACRO</code>（VERSION, BUILD_TIME 等构建时宏），定义 <code>BUILD_TARGET</code>、<code>BUILD_ENV</code>、<code>INTERFACE_TYPE</code> 全局变量。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div class="flow-content">
+          <h4>main.tsx — CLI 命令定义</h4>
+          <p>使用 Commander.js 解析命令行参数。初始化认证、分析服务、策略检查。根据参数决定进入 REPL 模式还是 Pipe 模式。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div class="flow-content">
+          <h4>init.ts — 一次性初始化</h4>
+          <p>遥测配置、TLS 证书、信任对话框、配置文件加载。设置优雅关闭处理。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">4</div>
+        <div class="flow-content">
+          <h4>REPL.tsx — 交互界面启动</h4>
+          <p>React/Ink 组件挂载。初始化消息历史、工具列表、MCP 连接。进入用户输入循环。</p>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="layers">架构分层</h2>
+
+    <div class="arch-diagram">
+      <div style="display: flex; flex-direction: column; gap: 1rem; align-items: center;">
+        <div class="arch-box" style="width: 80%; max-width: 600px; border-color: var(--accent-blue);">
+          <div class="box-label" style="color: var(--accent-blue);">表现层</div>
+          <div class="box-name">Ink / React Components</div>
+          <div class="box-file">REPL.tsx, Messages.tsx, PromptInput/, permissions/</div>
+        </div>
+        <div class="arch-arrow" style="transform: rotate(90deg);">&#8594;</div>
+        <div class="arch-box" style="width: 80%; max-width: 600px; border-color: var(--accent-green);">
+          <div class="box-label" style="color: var(--accent-green);">业务逻辑层</div>
+          <div class="box-name">QueryEngine / query()</div>
+          <div class="box-file">会话管理, 工具编排, 权限检查, 上下文构建</div>
+        </div>
+        <div class="arch-arrow" style="transform: rotate(90deg);">&#8594;</div>
+        <div class="arch-box" style="width: 80%; max-width: 600px; border-color: var(--accent-gold);">
+          <div class="box-label" style="color: var(--accent-gold);">服务层</div>
+          <div class="box-name">API Client / Tool System / MCP</div>
+          <div class="box-file">claude.ts, tools/, services/</div>
+        </div>
+        <div class="arch-arrow" style="transform: rotate(90deg);">&#8594;</div>
+        <div class="arch-box" style="width: 80%; max-width: 600px; border-color: var(--accent-primary);">
+          <div class="box-label" style="color: var(--accent-primary);">基础设施层</div>
+          <div class="box-name">State / Config / Hooks / Permissions</div>
+          <div class="box-file">state/, utils/, bootstrap/</div>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="state">状态管理</h2>
+    <p>Claude Code 使用多层状态管理：</p>
+
+    <ul>
+      <li><strong>AppState (src/state/AppState.tsx)</strong> — 中央状态类型和 Context Provider。包含消息列表、工具池、权限配置、MCP 连接等。</li>
+      <li><strong>Store (src/state/store.ts)</strong> — Zustand 风格的状态存储，用于 AppState 的读写。</li>
+      <li><strong>Session Singletons (src/bootstrap/state.ts)</strong> — 模块级单例：Session ID、当前工作目录、项目根路径、Token 计数。</li>
+    </ul>
+
+    <div class="code-block">
+<span class="comment">// AppState 核心字段</span>
+<span class="keyword">interface</span> <span class="type">AppState</span> {
+  messages: <span class="type">Message</span>[]           <span class="comment">// 对话消息列表</span>
+  tools: <span class="type">Tool</span>[]                 <span class="comment">// 可用工具列表</span>
+  permissionContext: <span class="type">PermCtx</span>    <span class="comment">// 权限配置</span>
+  mcpClients: <span class="type">McpClient</span>[]       <span class="comment">// MCP 服务器连接</span>
+  apiConfig: <span class="type">ApiConfig</span>          <span class="comment">// API 配置 (provider, model)</span>
+  sessionId: <span class="keyword">string</span>            <span class="comment">// 会话唯一标识</span>
+  <span class="comment">// ... 更多字段</span>
+}
+    </div>
+
+    <h2 id="ui">UI 渲染层</h2>
+    <p>Claude Code 的终端 UI 基于 <strong>Ink</strong> — 一个在终端中渲染 React 组件的框架。</p>
+
+    <ul>
+      <li><strong>ink.ts</strong> — Ink 渲染包装器，注入 ThemeProvider。</li>
+      <li><strong>ink/</strong> — 自定义 Ink 框架（fork/内部版本）：自定义 reconciler、hooks (<code>useInput</code>, <code>useTerminalSize</code>)、虚拟列表渲染。</li>
+      <li><strong>components/</strong> — 终端 UI 组件：App.tsx (根 Provider)、Messages.tsx (消息渲染)、PromptInput/ (用户输入)、permissions/ (权限确认 UI)。</li>
+    </ul>
+
+    <div class="info-box">
+      <strong>React Compiler</strong> — 组件代码中可以看到 <code>const $ = _c(N)</code> 这样的模式，这是 React Compiler 自动优化后的产物。每个组件都经过编译器的 memoization 处理。
+    </div>
+
+    <h2 id="feature-flags">Feature Flag 系统</h2>
+    <p>所有 <code>feature('FLAG_NAME')</code> 调用来自 <code>bun:bundle</code>（构建时 API）。在反编译版本中，<code>feature()</code> 被 polyfill 为始终返回 <code>false</code>。</p>
+
+    <p>这意味着所有 Anthropic 内部功能（COORDINATOR_MODE, KAIROS, PROACTIVE 等）都被禁用。feature flag 后面的代码在此版本中全部是死代码。</p>
+
+    <div class="code-block">
+<span class="comment">// cli.tsx 中的 polyfill</span>
+<span class="keyword">globalThis</span>.feature = () => <span class="keyword">false</span>;
+
+<span class="comment">// 使用示例 (这些分支永远不会执行)</span>
+<span class="keyword">if</span> (<span class="fn">feature</span>(<span class="string">'COORDINATOR_MODE'</span>)) {
+  <span class="comment">// 协调者模式 — 死代码</span>
+}
+<span class="keyword">if</span> (<span class="fn">feature</span>(<span class="string">'KAIROS'</span>)) {
+  <span class="comment">// 后台主动模式 — 死代码</span>
+}
+    </div>
+
+    <div class="info-box warning">
+      <strong>注意：</strong> 已知的 Feature Flag 包括：COORDINATOR_MODE, KAIROS, PROACTIVE, AGENT_TRIGGERS, WEB_BROWSER_TOOL, MONITOR_TOOL, ENABLE_AGENT_SWARMS, UDS_INBOX, WORKFLOW_SCRIPTS, TERMINAL_PANEL 等。这些代表了 Claude Code 正在开发中的功能方向。
+    </div>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

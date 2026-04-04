@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hook 系统 - Claude Code 源码分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="../" class="nav-logo"><span class="logo-icon">&gt;_</span> Claude Code 源码分析</a>
+    <ul class="nav-links">
+      <li><a href="../">首页</a></li>
+      <li><a href="architecture.html">架构</a></li>
+      <li><a href="agent-loop.html">Agent Loop</a></li>
+      <li><a href="tools.html">工具系统</a></li>
+      <li><a href="permissions.html">权限系统</a></li>
+      <li><a href="agents.html">多智能体</a></li>
+      <li><a href="context.html">上下文管理</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-with-sidebar">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">本章内容</div>
+      <a href="#overview" class="sidebar-link active">Hook 概览</a>
+      <a href="#events" class="sidebar-link">生命周期事件</a>
+      <a href="#config" class="sidebar-link">配置方式</a>
+      <a href="#execution" class="sidebar-link">执行机制</a>
+      <a href="#exit-codes" class="sidebar-link">Exit Code 约定</a>
+      <a href="#async" class="sidebar-link">异步 Hook</a>
+    </div>
+  </aside>
+
+  <main class="page-main">
+    <div class="section-tag">Chapter 07</div>
+    <h1>Hook 系统</h1>
+    <p>Hook 系统让用户可以在 Claude Code 的生命周期关键节点注入自定义行为 — 从工具执行前后到会话开始结束。</p>
+
+    <h2 id="overview">Hook 系统概览</h2>
+    <p>Hook 是用户配置的 shell 命令，在特定事件触发时自动执行。每个 Hook 接收 JSON 格式的输入（通过 stdin），通过 exit code 和 stdout/stderr 影响系统行为。</p>
+
+    <div class="info-box">
+      <strong>核心文件：</strong> <code>src/utils/hooks/</code> 目录下包含：AsyncHookRegistry.ts（异步注册表）、hookEvents.ts（事件系统）、hooksConfigManager.ts（配置管理）、execPromptHook.ts（执行引擎）。
+    </div>
+
+    <h2 id="events">15+ 生命周期事件</h2>
+
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th>事件名</th>
+            <th>触发时机</th>
+            <th>输入 (stdin JSON)</th>
+            <th>可控行为</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="4" style="color: var(--accent-blue); font-weight: 600; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; padding-top: 1.5rem;">核心生命周期</td></tr>
+          <tr>
+            <td><span class="tool-name">SessionStart</span></td>
+            <td>会话开始 (init/resume/clear/compact)</td>
+            <td>session 信息</td>
+            <td>初始化自定义环境</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">Setup</span></td>
+            <td>仓库初始化/维护</td>
+            <td>repo 信息</td>
+            <td>执行 setup 脚本</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">UserPromptSubmit</span></td>
+            <td>用户输入处理前</td>
+            <td>用户提示内容</td>
+            <td>拦截/替换用户输入</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">Stop</span></td>
+            <td>助手即将结束回复</td>
+            <td>回复信息</td>
+            <td>exit 2 → stderr 显示给模型</td>
+          </tr>
+
+          <tr><td colspan="4" style="color: var(--accent-green); font-weight: 600; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; padding-top: 1.5rem;">工具钩子</td></tr>
+          <tr>
+            <td><span class="tool-name">PreToolUse</span></td>
+            <td>工具执行前</td>
+            <td>工具名 + 输入参数 JSON</td>
+            <td>exit 0=静默, 2=阻止+原因</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">PostToolUse</span></td>
+            <td>工具执行后</td>
+            <td>{inputs, response}</td>
+            <td>exit 0=transcript, 2=显示给模型</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">PostToolUseFailure</span></td>
+            <td>工具执行失败</td>
+            <td>{tool_name, error, is_timeout}</td>
+            <td>错误日志/通知</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">PermissionRequest</span></td>
+            <td>权限对话框显示时</td>
+            <td>{tool_name, tool_input}</td>
+            <td>Hook 决定 allow/deny</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">PermissionDenied</span></td>
+            <td>auto 模式分类器拒绝</td>
+            <td>{tool_name, reason}</td>
+            <td>设置 {retry: true} 重试</td>
+          </tr>
+
+          <tr><td colspan="4" style="color: var(--accent-gold); font-weight: 600; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; padding-top: 1.5rem;">Agent 钩子</td></tr>
+          <tr>
+            <td><span class="tool-name">SubagentStart</span></td>
+            <td>子 Agent 生成时</td>
+            <td>{agent_id, agent_type}</td>
+            <td>记录/通知</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">SubagentStop</span></td>
+            <td>子 Agent 结束时</td>
+            <td>{agent_id, transcript_path}</td>
+            <td>清理/分析</td>
+          </tr>
+
+          <tr><td colspan="4" style="color: var(--accent-primary); font-weight: 600; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; padding-top: 1.5rem;">压缩钩子</td></tr>
+          <tr>
+            <td><span class="tool-name">PreCompact</span></td>
+            <td>上下文压缩前</td>
+            <td>{trigger: 'manual'|'auto'}</td>
+            <td>exit 0=追加指令, 2=阻止压缩</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">PostCompact</span></td>
+            <td>上下文压缩后</td>
+            <td>{trigger}</td>
+            <td>exit 0=stdout 显示给用户</td>
+          </tr>
+
+          <tr><td colspan="4" style="color: var(--accent-warm); font-weight: 600; font-family: var(--font-mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; padding-top: 1.5rem;">其他钩子</td></tr>
+          <tr>
+            <td><span class="tool-name">Notification</span></td>
+            <td>通知发送时</td>
+            <td>{notification_type}</td>
+            <td>自定义通知行为</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">TaskCreated/Completed</span></td>
+            <td>任务生命周期</td>
+            <td>{task_id, task_subject}</td>
+            <td>exit 2=阻止</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="config">配置方式</h2>
+    <p>Hook 在 <code>settings.json</code> 中配置：</p>
+
+    <div class="code-block">
+<span class="comment">// ~/.claude/settings.json 或 .claude/settings.json</span>
+{
+  <span class="string">"hooks"</span>: {
+    <span class="string">"PreToolUse"</span>: [
+      {
+        <span class="string">"matcher"</span>: { <span class="string">"tool_name"</span>: <span class="string">"Bash"</span> },
+        <span class="string">"command"</span>: <span class="string">"python3 check_bash_safety.py"</span>
+      }
+    ],
+    <span class="string">"PostToolUse"</span>: [
+      {
+        <span class="string">"matcher"</span>: { <span class="string">"tool_name"</span>: <span class="string">"FileWriteTool"</span> },
+        <span class="string">"command"</span>: <span class="string">"./scripts/auto-format.sh"</span>
+      }
+    ],
+    <span class="string">"SessionStart"</span>: [
+      {
+        <span class="string">"command"</span>: <span class="string">"echo 'Session started' >> ~/.claude/session.log"</span>
+      }
+    ]
+  }
+}
+    </div>
+
+    <h2 id="execution">执行机制</h2>
+    <p>Hook 通过子进程执行，输入通过 stdin 传递，输出通过 stdout/stderr 收集：</p>
+
+    <div class="code-block">
+<span class="comment">// 执行流程 (execPromptHook.ts)</span>
+<span class="keyword">async function</span> <span class="fn">executePromptHook</span>(hookConfig, input) {
+  <span class="comment">// 1. 启动子进程</span>
+  <span class="keyword">const</span> proc = <span class="fn">spawn</span>(hookConfig.command, { shell: <span class="keyword">true</span> });
+
+  <span class="comment">// 2. 传入 JSON 输入</span>
+  proc.stdin.<span class="fn">write</span>(JSON.<span class="fn">stringify</span>(input));
+  proc.stdin.<span class="fn">end</span>();
+
+  <span class="comment">// 3. 收集输出</span>
+  <span class="keyword">const</span> stdout = <span class="keyword">await</span> <span class="fn">readStream</span>(proc.stdout);
+  <span class="keyword">const</span> stderr = <span class="keyword">await</span> <span class="fn">readStream</span>(proc.stderr);
+
+  <span class="comment">// 4. 根据 exit code 决定行为</span>
+  <span class="keyword">const</span> exitCode = <span class="keyword">await</span> proc.exitCode;
+  <span class="keyword">return</span> { exitCode, stdout, stderr };
+}
+    </div>
+
+    <h2 id="exit-codes">Exit Code 约定</h2>
+
+    <div class="chapters-grid" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-green); font-size: 0.95rem;">Exit 0 — 成功</h3>
+        <p>PreToolUse: 静默通过<br>PostToolUse: stdout 以 transcript 模式显示<br>PreCompact: stdout 追加到压缩指令</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-red); font-size: 0.95rem;">Exit 2 — 特殊控制</h3>
+        <p>PreToolUse: <strong>阻止</strong>工具执行，stderr 作为原因显示给模型<br>PreCompact: <strong>阻止</strong>压缩<br>TaskCreated: <strong>阻止</strong>任务创建</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-gold); font-size: 0.95rem;">其他 Exit Code</h3>
+        <p>stderr 仅显示给用户（不传递给模型）。用于日志记录和调试信息。</p>
+      </div>
+    </div>
+
+    <h2 id="async">异步 Hook 注册表</h2>
+    <p><code>AsyncHookRegistry</code> 管理长时间运行的 Hook：</p>
+
+    <ul>
+      <li><strong>注册：</strong> <code>registerPendingAsyncHook()</code> 注册 Hook，设置超时（默认 15 秒）</li>
+      <li><strong>进度追踪：</strong> 每秒发出 <code>HookProgressEvent</code></li>
+      <li><strong>轮询：</strong> 每个 query turn 调用 <code>checkForAsyncHookResponses()</code> 检查完成状态</li>
+      <li><strong>完成：</strong> 读取 stdout/stderr，解析 JSON 响应，触发 <code>HookResponseEvent</code></li>
+      <li><strong>清理：</strong> 完成的 Hook 从 pendingHooks Map 中移除</li>
+    </ul>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

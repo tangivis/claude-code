@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP 协议 - Claude Code 源码分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="../" class="nav-logo"><span class="logo-icon">&gt;_</span> Claude Code 源码分析</a>
+    <ul class="nav-links">
+      <li><a href="../">首页</a></li>
+      <li><a href="architecture.html">架构</a></li>
+      <li><a href="agent-loop.html">Agent Loop</a></li>
+      <li><a href="tools.html">工具系统</a></li>
+      <li><a href="permissions.html">权限系统</a></li>
+      <li><a href="agents.html">多智能体</a></li>
+      <li><a href="context.html">上下文管理</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-with-sidebar">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">本章内容</div>
+      <a href="#overview" class="sidebar-link active">MCP 概览</a>
+      <a href="#architecture" class="sidebar-link">集成架构</a>
+      <a href="#tools" class="sidebar-link">MCP 工具代理</a>
+      <a href="#resources" class="sidebar-link">资源系统</a>
+      <a href="#lifecycle" class="sidebar-link">Server 生命周期</a>
+    </div>
+  </aside>
+
+  <main class="page-main">
+    <div class="section-tag">Chapter 08</div>
+    <h1>MCP 协议集成</h1>
+    <p>Model Context Protocol (MCP) 让 Claude Code 可以连接外部工具服务器 — 将任意工具、资源和 prompt 模板无缝集成到对话中。</p>
+
+    <h2 id="overview">MCP 概览</h2>
+    <p>MCP 是 Anthropic 提出的标准协议，用于连接 AI 模型和外部工具/数据源。Claude Code 作为 MCP Client，可以连接多个 MCP Server。</p>
+
+    <div class="arch-diagram">
+      <div class="arch-flow">
+        <div class="arch-box" style="border-color: var(--accent-primary);">
+          <div class="box-label">MCP Client</div>
+          <div class="box-name">Claude Code</div>
+        </div>
+        <div class="arch-arrow">&#8596;</div>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <div class="arch-box" style="border-color: var(--accent-blue);">
+            <div class="box-name">GitHub MCP Server</div>
+            <div class="box-file">PR, Issues, Reviews</div>
+          </div>
+          <div class="arch-box" style="border-color: var(--accent-green);">
+            <div class="box-name">Database MCP Server</div>
+            <div class="box-file">Query, Schema</div>
+          </div>
+          <div class="arch-box" style="border-color: var(--accent-gold);">
+            <div class="box-name">Custom MCP Server</div>
+            <div class="box-file">自定义工具</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="architecture">集成架构</h2>
+    <p>MCP 集成涉及以下关键组件：</p>
+
+    <ul>
+      <li><strong>MCP Client 管理</strong> — AppState 中维护 <code>mcpClients</code> 列表，每个连接对应一个 MCP Server</li>
+      <li><strong>工具注入</strong> — MCP Server 提供的工具以 <code>mcp__{server}__{tool}</code> 前缀注入到工具池</li>
+      <li><strong>资源访问</strong> — 通过 <code>ListMcpResourcesTool</code> 和 <code>ReadMcpResourceTool</code> 读取 MCP 资源</li>
+      <li><strong>MCPTool 代理</strong> — 通用工具代理，透传执行任意 MCP 工具</li>
+    </ul>
+
+    <h2 id="tools">MCP 工具代理</h2>
+    <p>MCP Server 提供的工具通过 <code>MCPTool</code> 代理执行：</p>
+
+    <div class="code-block">
+<span class="comment">// MCP 工具命名约定</span>
+mcp__github__create_pr      <span class="comment">// server: github, tool: create_pr</span>
+mcp__database__query         <span class="comment">// server: database, tool: query</span>
+mcp__slack__send_message     <span class="comment">// server: slack, tool: send_message</span>
+
+<span class="comment">// MCPTool 执行流程</span>
+<span class="keyword">class</span> <span class="type">MCPTool</span> {
+  <span class="comment">// 开放式输入 schema — 透传 MCP 工具的参数</span>
+  inputSchema: <span class="string">'passthrough'</span>
+
+  <span class="keyword">async</span> <span class="fn">call</span>(input, context) {
+    <span class="comment">// 1. 工具名和参数在运行时覆盖</span>
+    <span class="keyword">const</span> result = <span class="keyword">await</span> mcpClient.<span class="fn">callTool</span>(toolName, input);
+    <span class="comment">// 2. 返回执行结果</span>
+    <span class="keyword">return</span> result;
+  }
+}
+    </div>
+
+    <h3>权限处理</h3>
+    <p>MCP 工具的权限通过通配符匹配：</p>
+    <div class="code-block">
+<span class="comment">// 权限规则示例</span>
+{ toolName: <span class="string">'mcp__github__*'</span> }          <span class="comment">// 允许 github server 的所有工具</span>
+{ toolName: <span class="string">'mcp__database__query'</span> }     <span class="comment">// 仅允许 database 的 query 工具</span>
+    </div>
+
+    <h2 id="resources">资源系统</h2>
+
+    <div class="chapters-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-blue); font-size: 0.95rem;">ListMcpResourcesTool</h3>
+        <p>列出 MCP Server 可用资源。支持按 server 名称过滤。返回 URI、名称、MIME 类型、描述。使用 LRU 缓存。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-green); font-size: 0.95rem;">ReadMcpResourceTool</h3>
+        <p>通过 URI 读取特定资源内容。支持文本和二进制内容。二进制数据持久化到 blob 文件。</p>
+      </div>
+    </div>
+
+    <h2 id="lifecycle">MCP Server 生命周期</h2>
+
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div class="flow-content">
+          <h4>配置注册</h4>
+          <p>MCP Server 在 settings.json 或 Agent 定义的 <code>mcpServers</code> 中配置。包含启动命令、环境变量等。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div class="flow-content">
+          <h4>连接建立</h4>
+          <p>Claude Code 启动时或 Agent 初始化时，连接配置的 MCP Server。<code>initializeAgentMcpServers()</code> 处理 Agent 专属的 Server。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div class="flow-content">
+          <h4>工具发现</h4>
+          <p>连接后自动发现 Server 提供的工具，以 <code>mcp__</code> 前缀加入工具池。工具 schema 从 Server 动态获取。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">4</div>
+        <div class="flow-content">
+          <h4>使用 & 清理</h4>
+          <p>对话中正常使用 MCP 工具。Agent 退出时清理内联定义的 Server（命名引用的 Server 被 memoize 保留）。</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

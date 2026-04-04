@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>权限与安全 - Claude Code 源码分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="../" class="nav-logo"><span class="logo-icon">&gt;_</span> Claude Code 源码分析</a>
+    <ul class="nav-links">
+      <li><a href="../">首页</a></li>
+      <li><a href="architecture.html">架构</a></li>
+      <li><a href="agent-loop.html">Agent Loop</a></li>
+      <li><a href="tools.html">工具系统</a></li>
+      <li><a href="permissions.html" class="active">权限系统</a></li>
+      <li><a href="agents.html">多智能体</a></li>
+      <li><a href="context.html">上下文管理</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-with-sidebar">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">本章内容</div>
+      <a href="#modes" class="sidebar-link active">权限模式</a>
+      <a href="#rules" class="sidebar-link">规则系统</a>
+      <a href="#check-flow" class="sidebar-link">权限检查流程</a>
+      <a href="#classifier" class="sidebar-link">LLM 分类器</a>
+      <a href="#dangerous" class="sidebar-link">危险命令检测</a>
+      <a href="#vs-codex" class="sidebar-link">对比 Codex CLI</a>
+    </div>
+  </aside>
+
+  <main class="page-main">
+    <div class="section-tag">Chapter 04</div>
+    <h1>权限与安全</h1>
+    <p>Claude Code 使用多层权限架构来控制工具执行 — 从 6 种权限模式到 LLM 分类器自动审批，再到危险命令检测。</p>
+
+    <h2 id="modes">6 种权限模式</h2>
+    <p>权限模式决定了工具调用的默认处理方式：</p>
+
+    <div class="chapters-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="chapter-card">
+        <h3><span class="perm-badge perm-default">default</span></h3>
+        <p>每个工具调用都需要用户明确批准。最安全的模式，适合首次使用或敏感操作。</p>
+      </div>
+      <div class="chapter-card">
+        <h3><span class="perm-badge perm-plan">plan</span></h3>
+        <p>执行前需要审批整体计划。进入 Plan Mode 后，工具调用暂停直到计划被批准。</p>
+      </div>
+      <div class="chapter-card">
+        <h3><span class="perm-badge perm-accept">acceptEdits</span></h3>
+        <p>自动批准文件编辑操作（FileWrite, FileEdit），其他工具仍需确认。</p>
+      </div>
+      <div class="chapter-card">
+        <h3><span class="perm-badge perm-bypass">bypassPermissions</span></h3>
+        <p>&#9888; 自动批准所有工具调用。危险模式，跳过所有权限检查。</p>
+      </div>
+      <div class="chapter-card">
+        <h3><span class="perm-badge perm-auto">auto</span></h3>
+        <p>LLM 分类器驱动的自动审批。模型推理判断命令安全性，高置信度自动通过。</p>
+      </div>
+      <div class="chapter-card">
+        <h3><span class="perm-badge" style="background: rgba(152,152,168,0.15); color: var(--text-secondary);">dontAsk</span></h3>
+        <p>自动拒绝所有未预批准的调用。用于后台 Agent，避免交互式提示。</p>
+      </div>
+    </div>
+
+    <h2 id="rules">7 层规则系统</h2>
+    <p>权限规则来自多个来源，按优先级从高到低排列：</p>
+
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div class="flow-content">
+          <h4>flagSettings (最高优先级)</h4>
+          <p>命令行 <code>--allow</code> / <code>--deny</code> 参数。直接在启动时设置。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div class="flow-content">
+          <h4>cliArg</h4>
+          <p>初始化设置参数（如首次运行配置）。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div class="flow-content">
+          <h4>userSettings</h4>
+          <p>用户配置文件 <code>~/.claude/settings.json</code> 中的规则。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">4</div>
+        <div class="flow-content">
+          <h4>projectSettings</h4>
+          <p>项目配置文件 <code>.claude/settings.json</code> 中的规则。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">5</div>
+        <div class="flow-content">
+          <h4>policySettings</h4>
+          <p>组织强制策略（远程管理的规则）。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">6</div>
+        <div class="flow-content">
+          <h4>command</h4>
+          <p>运行时 <code>/allow-tool</code> 命令设置的规则。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">7</div>
+        <div class="flow-content">
+          <h4>session (最低优先级)</h4>
+          <p>会话级临时规则（用户在权限对话框中的选择）。</p>
+        </div>
+      </div>
+    </div>
+
+    <p>每条规则的结构：</p>
+    <div class="code-block">
+<span class="keyword">interface</span> <span class="type">PermissionRule</span> {
+  source: <span class="type">PermissionRuleSource</span>     <span class="comment">// 来源 (7 层之一)</span>
+  ruleBehavior: <span class="string">'allow'</span> | <span class="string">'deny'</span> | <span class="string">'ask'</span>
+  ruleValue: {
+    toolName: <span class="keyword">string</span>              <span class="comment">// 'Bash', 'Read', 'mcp__server__tool'</span>
+    ruleContent?: <span class="keyword">string</span>          <span class="comment">// 可选内容: Bash(prefix:npm), Read(/path)</span>
+  }
+}
+
+<span class="comment">// 规则示例</span>
+{ toolName: <span class="string">'Bash'</span>, ruleContent: <span class="string">'prefix:npm'</span> }     <span class="comment">// npm 开头的命令</span>
+{ toolName: <span class="string">'Read'</span>, ruleContent: <span class="string">'/home/user/src'</span> }  <span class="comment">// 特定目录</span>
+{ toolName: <span class="string">'mcp__github__*'</span> }                      <span class="comment">// MCP server 通配</span>
+    </div>
+
+    <h2 id="check-flow">权限检查流程</h2>
+    <p>每次工具调用都经过 <code>hasPermissionsToUseTool()</code> 的完整检查链：</p>
+
+    <div class="arch-diagram">
+      <div style="display: flex; flex-direction: column; gap: 0.75rem; align-items: center;">
+        <div class="arch-box" style="width: 90%; max-width: 700px; border-color: var(--accent-red);">
+          <div class="box-name">1. Deny Rules — 匹配任何 deny 规则？ → 立即拒绝</div>
+        </div>
+        <div class="arch-arrow" style="transform: rotate(90deg);">&#8595;</div>
+        <div class="arch-box" style="width: 90%; max-width: 700px; border-color: var(--accent-green);">
+          <div class="box-name">2. Allow Rules — 匹配任何 allow 规则？ → 立即通过</div>
+        </div>
+        <div class="arch-arrow" style="transform: rotate(90deg);">&#8595;</div>
+        <div class="arch-box" style="width: 90%; max-width: 700px; border-color: var(--accent-gold);">
+          <div class="box-name">3. Ask Rules — 匹配 ask 规则？ → 进入提示队列</div>
+        </div>
+        <div class="arch-arrow" style="transform: rotate(90deg);">&#8595;</div>
+        <div class="arch-box" style="width: 90%; max-width: 700px; border-color: var(--accent-primary);">
+          <div class="box-name">4. LLM Classifier — (auto 模式) 模型推理判断安全性</div>
+        </div>
+        <div class="arch-arrow" style="transform: rotate(90deg);">&#8595;</div>
+        <div class="arch-box" style="width: 90%; max-width: 700px; border-color: var(--accent-secondary);">
+          <div class="box-name">5. Hook Check — PreToolUse 钩子可以拦截 (exit code 2 = 阻止)</div>
+        </div>
+        <div class="arch-arrow" style="transform: rotate(90deg);">&#8595;</div>
+        <div class="arch-box" style="width: 90%; max-width: 700px; border-color: var(--text-muted);">
+          <div class="box-name">6. Default Fallback — 根据当前权限模式处理 (ask/deny)</div>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="classifier">LLM 分类器 — 用 AI 判断安全性</h2>
+    <p>这是 Claude Code 最独特的安全机制 — 用一次额外的 LLM 调用来判断工具调用是否安全：</p>
+
+    <div class="info-box">
+      <strong>核心思想：</strong> 与 Codex CLI 使用 OS 内核级沙箱不同，Claude Code 调用一个轻量级模型来分类命令的危险程度。高置信度安全 → 自动通过；低置信度或危险 → 要求用户确认。
+    </div>
+
+    <h3>Bash 分类器 (bashClassifier)</h3>
+    <ul>
+      <li>评估 Bash 命令的危险模式</li>
+      <li>检测：<code>rm -rf</code>, <code>git push --force</code>, <code>curl | sh</code> 等</li>
+      <li>返回置信度等级</li>
+      <li>2 秒超时的推测性检查（Speculative Check）</li>
+    </ul>
+
+    <h3>Auto 模式分类器 (yoloClassifier)</h3>
+    <ul>
+      <li>使用模型推理评估工具安全性</li>
+      <li>返回决策 + 置信度</li>
+      <li>高置信度 → 在 auto 模式下自动批准</li>
+      <li>低置信度 → 回退到用户提示</li>
+    </ul>
+
+    <div class="code-block">
+<span class="comment">// 分类器的推测性检查（2 秒竞速）</span>
+<span class="keyword">const</span> classifierResult = <span class="keyword">await</span> Promise.<span class="fn">race</span>([
+  <span class="fn">bashClassifier</span>(command),
+  <span class="fn">timeout</span>(<span class="string">2000</span>)  <span class="comment">// 2 秒超时</span>
+]);
+
+<span class="keyword">if</span> (classifierResult?.confidence === <span class="string">'high'</span>
+    && classifierResult?.decision === <span class="string">'safe'</span>) {
+  <span class="comment">// 自动通过，无需用户确认</span>
+  <span class="keyword">return</span> <span class="string">'allow'</span>;
+}
+<span class="comment">// 否则回退到用户提示</span>
+    </div>
+
+    <h2 id="dangerous">危险命令检测</h2>
+    <p>系统内置了危险规则检测，防止用户配置过于宽松的允许规则：</p>
+
+    <h3>Bash 危险规则</h3>
+    <ul>
+      <li><code>isDangerousBashPermission()</code> 检测允许任意代码执行的规则</li>
+      <li>检测模式：通配符 (<code>*</code>)、解释器 (<code>python</code>, <code>node</code>)、包管理器 (<code>pip install</code>)</li>
+      <li>Auto 模式会自动剥离危险规则，强制使用提示</li>
+    </ul>
+
+    <h3>PowerShell 危险规则</h3>
+    <ul>
+      <li><code>isDangerousPowerShellPermission()</code> 检测</li>
+      <li>检测：<code>Invoke-Expression</code>, <code>Start-Process</code>, <code>iex</code> 等</li>
+    </ul>
+
+    <h2 id="vs-codex">安全哲学对比：Claude Code vs Codex CLI</h2>
+
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th style="color: var(--accent-primary);">Claude Code</th>
+            <th style="color: var(--accent-gold);">Codex CLI</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>实现语言</strong></td>
+            <td>TypeScript</td>
+            <td>Rust (81 crates)</td>
+          </tr>
+          <tr>
+            <td><strong>安全模型</strong></td>
+            <td>LLM 分类器 + 多层规则</td>
+            <td>OS 内核沙箱 (Landlock/Seatbelt)</td>
+          </tr>
+          <tr>
+            <td><strong>隔离方式</strong></td>
+            <td>进程级 + Git Worktree</td>
+            <td>内核级命名空间隔离</td>
+          </tr>
+          <tr>
+            <td><strong>安全保证</strong></td>
+            <td>概率性（依赖模型判断）</td>
+            <td>确定性（依赖 OS 内核）</td>
+          </tr>
+          <tr>
+            <td><strong>灵活性</strong></td>
+            <td>高（规则可自定义，模型可理解语义）</td>
+            <td>低（系统调用级别的黑白名单）</td>
+          </tr>
+          <tr>
+            <td><strong>权限粒度</strong></td>
+            <td>工具级 + 内容匹配 (prefix, path)</td>
+            <td>系统调用级 (read/write/exec)</td>
+          </tr>
+          <tr>
+            <td><strong>绕过风险</strong></td>
+            <td>存在（Prompt Injection, 模型误判）</td>
+            <td>极低（需要 OS 内核漏洞）</td>
+          </tr>
+          <tr>
+            <td><strong>额外开销</strong></td>
+            <td>每次审批需要一次 LLM 调用</td>
+            <td>无额外开销（内核原生支持）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="info-box warning">
+      <strong>核心差异：</strong> 一个用 Rust 写了 81 个 crate，靠操作系统内核来保证安全；另一个用 TypeScript 做了 40 多个工具，靠额外调一次 LLM 来判断你的命令危不危险。两种完全不同的安全哲学。
+    </div>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

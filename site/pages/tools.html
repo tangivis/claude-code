@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工具系统 - Claude Code 源码分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="../" class="nav-logo"><span class="logo-icon">&gt;_</span> Claude Code 源码分析</a>
+    <ul class="nav-links">
+      <li><a href="../">首页</a></li>
+      <li><a href="architecture.html">架构</a></li>
+      <li><a href="agent-loop.html">Agent Loop</a></li>
+      <li><a href="tools.html" class="active">工具系统</a></li>
+      <li><a href="permissions.html">权限系统</a></li>
+      <li><a href="agents.html">多智能体</a></li>
+      <li><a href="context.html">上下文管理</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-with-sidebar">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">本章内容</div>
+      <a href="#overview" class="sidebar-link active">概览</a>
+      <a href="#interface" class="sidebar-link">Tool 接口</a>
+      <a href="#registry" class="sidebar-link">注册 & 加载</a>
+      <a href="#catalog" class="sidebar-link">完整工具目录</a>
+      <a href="#file-tools" class="sidebar-link">文件操作</a>
+      <a href="#search-tools" class="sidebar-link">搜索导航</a>
+      <a href="#shell-tools" class="sidebar-link">Shell 执行</a>
+      <a href="#web-tools" class="sidebar-link">Web 工具</a>
+      <a href="#agent-tools" class="sidebar-link">Agent 工具</a>
+      <a href="#task-tools" class="sidebar-link">任务管理</a>
+      <a href="#mcp-tools" class="sidebar-link">MCP 工具</a>
+      <a href="#conditional" class="sidebar-link">条件加载</a>
+    </div>
+  </aside>
+
+  <main class="page-main">
+    <div class="section-tag">Chapter 03</div>
+    <h1>工具系统</h1>
+    <p>Claude Code 拥有 40+ 内置工具，每个工具都有独立的目录、输入 Schema、执行逻辑和可选的 React 渲染组件。</p>
+
+    <h2 id="overview">工具系统概览</h2>
+    <div class="stats-bar" style="justify-content: flex-start; gap: 2rem; margin: 1.5rem 0;">
+      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">40+</div><div class="stat-label">内置工具</div></div>
+      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">8</div><div class="stat-label">工具分类</div></div>
+      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">15+</div><div class="stat-label">Feature 门控</div></div>
+    </div>
+
+    <h2 id="interface">Tool 接口定义</h2>
+    <p>每个工具都实现 <code>Tool</code> 接口（src/Tool.ts）：</p>
+
+    <div class="code-block">
+<span class="keyword">interface</span> <span class="type">Tool</span> {
+  name: <span class="keyword">string</span>                        <span class="comment">// 唯一标识 (如 "Bash", "Read")</span>
+  searchHint: <span class="keyword">string</span>                  <span class="comment">// 工具搜索描述</span>
+  description: <span class="keyword">string</span>                 <span class="comment">// 发送给模型的工具描述</span>
+  inputSchema: <span class="type">JSONSchema</span>              <span class="comment">// Zod 验证的 JSON Schema</span>
+
+  <span class="fn">call</span>(input, context): <span class="type">ToolResult</span>   <span class="comment">// 执行逻辑</span>
+  <span class="fn">userFacingName</span>(): <span class="keyword">string</span>           <span class="comment">// UI 显示名称</span>
+  <span class="fn">getToolUseSummary</span>(): <span class="keyword">string</span>        <span class="comment">// 活动描述</span>
+
+  <span class="fn">isReadOnly</span>(): <span class="keyword">boolean</span>              <span class="comment">// 只读操作？</span>
+  <span class="fn">isConcurrencySafe</span>(): <span class="keyword">boolean</span>       <span class="comment">// 线程安全？</span>
+  <span class="fn">isEnabled</span>(): <span class="keyword">boolean</span>              <span class="comment">// 运行时启用/禁用</span>
+  shouldDefer: <span class="keyword">boolean</span>               <span class="comment">// 延迟加载 (ToolSearch)</span>
+
+  maxResultSizeChars: <span class="keyword">number</span>         <span class="comment">// 结果截断阈值 (~100,000)</span>
+
+  <span class="comment">// 可选：React 渲染组件</span>
+  <span class="fn">renderResult</span>?(result): <span class="type">JSX.Element</span>
+}
+    </div>
+
+    <h2 id="registry">工具注册 & 条件加载</h2>
+    <p>工具在 <code>src/tools.ts</code> 中注册，部分工具根据 feature flag 或环境条件有选择地加载：</p>
+
+    <div class="code-block">
+<span class="comment">// src/tools.ts — 工具组装</span>
+<span class="keyword">function</span> <span class="fn">assembleToolPool</span>(): <span class="type">Tool</span>[] {
+  <span class="keyword">const</span> tools = [
+    <span class="comment">// 始终可用</span>
+    AgentTool, BashTool, FileReadTool, FileEditTool, FileWriteTool,
+    WebFetchTool, WebSearchTool, SkillTool, AskUserQuestionTool, ...
+
+    <span class="comment">// 条件加载</span>
+    ...(!<span class="fn">hasEmbeddedSearchTools</span>() ? [GlobTool, GrepTool] : []),
+    ...(<span class="fn">feature</span>(<span class="string">'AGENT_TRIGGERS'</span>) ? [CronCreateTool, ...] : []),
+    ...(USER_TYPE === <span class="string">'ant'</span> ? [ConfigTool, REPLTool] : []),
+    ...(<span class="fn">isTodoV2Enabled</span>() ? [TaskCreateTool, ...] : [TodoWriteTool]),
+  ];
+  <span class="keyword">return</span> tools;
+}
+    </div>
+
+    <h2 id="catalog">完整工具目录</h2>
+
+    <div class="search-box">
+      <span class="search-icon">&#128269;</span>
+      <input type="text" id="tool-search" class="search-input" placeholder="搜索工具名称或描述...">
+    </div>
+
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th>工具名称</th>
+            <th>分类</th>
+            <th>描述</th>
+            <th>关键参数</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- File Operations -->
+          <tr>
+            <td><span class="tool-name">FileReadTool</span></td>
+            <td><span class="tool-category cat-file">文件</span></td>
+            <td>读取文件内容，支持 PDF、图片、Jupyter Notebook</td>
+            <td>file_path, limit, offset, pages</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">FileEditTool</span></td>
+            <td><span class="tool-category cat-file">文件</span></td>
+            <td>字符串替换编辑文件，保留缩进和引号风格</td>
+            <td>file_path, old_string, new_string, replace_all</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">FileWriteTool</span></td>
+            <td><span class="tool-category cat-file">文件</span></td>
+            <td>创建或完整覆盖文件</td>
+            <td>file_path, content</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">NotebookEditTool</span></td>
+            <td><span class="tool-category cat-file">文件</span></td>
+            <td>编辑 Jupyter Notebook 单元格</td>
+            <td>notebook_path, cell_id, new_source, edit_mode</td>
+          </tr>
+
+          <!-- Search & Navigation -->
+          <tr>
+            <td><span class="tool-name">GlobTool</span></td>
+            <td><span class="tool-category cat-search">搜索</span></td>
+            <td>文件名模式匹配，支持 glob 通配符</td>
+            <td>pattern, path</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">GrepTool</span></td>
+            <td><span class="tool-category cat-search">搜索</span></td>
+            <td>基于 ripgrep 的文件内容正则搜索</td>
+            <td>pattern, path, glob, output_mode, -A/-B/-C</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">LSPTool</span></td>
+            <td><span class="tool-category cat-search">搜索</span></td>
+            <td>Language Server Protocol 操作 (定义跳转、引用查找等)</td>
+            <td>operation, filePath, line, character</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">ToolSearchTool</span></td>
+            <td><span class="tool-category cat-search">搜索</span></td>
+            <td>搜索延迟加载的工具</td>
+            <td>query, max_results</td>
+          </tr>
+
+          <!-- Shell -->
+          <tr>
+            <td><span class="tool-name">BashTool</span></td>
+            <td><span class="tool-category cat-shell">Shell</span></td>
+            <td>执行 Bash 命令，支持后台运行、超时控制</td>
+            <td>command, timeout_ms, continue_on_error</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">PowerShellTool</span></td>
+            <td><span class="tool-category cat-shell">Shell</span></td>
+            <td>Windows PowerShell 命令执行</td>
+            <td>command, timeout_ms</td>
+          </tr>
+
+          <!-- Web -->
+          <tr>
+            <td><span class="tool-name">WebFetchTool</span></td>
+            <td><span class="tool-category cat-web">Web</span></td>
+            <td>抓取 URL 内容并用 AI 处理，HTML 转 Markdown</td>
+            <td>url, prompt</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">WebSearchTool</span></td>
+            <td><span class="tool-category cat-web">Web</span></td>
+            <td>执行网络搜索，返回结构化结果</td>
+            <td>query, allowed_domains, blocked_domains</td>
+          </tr>
+
+          <!-- Agent & Coordination -->
+          <tr>
+            <td><span class="tool-name">AgentTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>生成专用子 Agent 处理复杂任务</td>
+            <td>prompt, description, subagent_type, model, isolation</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">SkillTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>执行技能/命令 (如 /commit, /review-pr)</td>
+            <td>skill, args</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">SendMessageTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>向队友或广播发送消息</td>
+            <td>to, message, summary</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">TeamCreateTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>创建多 Agent 协作团队</td>
+            <td>team_name, description, agent_type</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">EnterPlanModeTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>进入计划模式，规划复杂任务</td>
+            <td>(无参数)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">ExitPlanModeTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>退出计划模式并执行</td>
+            <td>allowed_prompts, plan_overrides</td>
+          </tr>
+
+          <!-- Task Management -->
+          <tr>
+            <td><span class="tool-name">TaskCreateTool</span></td>
+            <td><span class="tool-category cat-task">任务</span></td>
+            <td>创建任务</td>
+            <td>subject, description, activeForm, metadata</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">TaskListTool</span></td>
+            <td><span class="tool-category cat-task">任务</span></td>
+            <td>列出所有任务及状态</td>
+            <td>(无参数)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">TaskUpdateTool</span></td>
+            <td><span class="tool-category cat-task">任务</span></td>
+            <td>更新任务状态和依赖关系</td>
+            <td>taskId, status, addBlocks, addBlockedBy</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">TaskOutputTool</span></td>
+            <td><span class="tool-category cat-task">任务</span></td>
+            <td>获取任务输出（支持阻塞等待）</td>
+            <td>task_id, block, timeout</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">TaskStopTool</span></td>
+            <td><span class="tool-category cat-task">任务</span></td>
+            <td>终止后台运行的任务</td>
+            <td>task_id</td>
+          </tr>
+
+          <!-- MCP -->
+          <tr>
+            <td><span class="tool-name">ListMcpResourcesTool</span></td>
+            <td><span class="tool-category cat-mcp">MCP</span></td>
+            <td>列出 MCP Server 可用资源</td>
+            <td>server</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">ReadMcpResourceTool</span></td>
+            <td><span class="tool-category cat-mcp">MCP</span></td>
+            <td>读取 MCP 资源内容</td>
+            <td>server, uri</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">MCPTool</span></td>
+            <td><span class="tool-category cat-mcp">MCP</span></td>
+            <td>MCP 工具代理（透传执行 MCP 工具）</td>
+            <td>(透传 MCP 工具的 schema)</td>
+          </tr>
+
+          <!-- Config & Other -->
+          <tr>
+            <td><span class="tool-name">AskUserQuestionTool</span></td>
+            <td><span class="tool-category cat-config">交互</span></td>
+            <td>向用户提问（支持多选、预览）</td>
+            <td>questions, answers, annotations</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">BriefTool</span></td>
+            <td><span class="tool-category cat-config">交互</span></td>
+            <td>向用户发送消息（支持附件）</td>
+            <td>message, attachments, status</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">EnterWorktreeTool</span></td>
+            <td><span class="tool-category cat-config">隔离</span></td>
+            <td>创建 Git Worktree 隔离环境</td>
+            <td>name</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">ExitWorktreeTool</span></td>
+            <td><span class="tool-category cat-config">隔离</span></td>
+            <td>退出 Worktree 会话</td>
+            <td>action (keep/remove), discard_changes</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">CronCreateTool</span></td>
+            <td><span class="tool-category cat-config">调度</span></td>
+            <td>创建定时任务（cron 表达式）</td>
+            <td>cron, prompt, recurring, durable</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">RemoteTriggerTool</span></td>
+            <td><span class="tool-category cat-config">调度</span></td>
+            <td>管理远程 Agent 触发器</td>
+            <td>action, trigger_id, body</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="conditional">条件加载矩阵</h2>
+    <p>工具的加载受多种条件控制：</p>
+
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th>条件类型</th>
+            <th>工具</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="perm-badge perm-default">始终可用</span></td>
+            <td>BashTool, FileReadTool, FileEditTool, FileWriteTool, AgentTool, WebFetchTool, WebSearchTool, SkillTool</td>
+            <td>核心工具，无条件加载</td>
+          </tr>
+          <tr>
+            <td><span class="perm-badge perm-plan">Feature Flag</span></td>
+            <td>CronTool, SleepTool, MonitorTool, WebBrowserTool, TerminalCaptureTool</td>
+            <td>由 feature() 控制，当前全部禁用</td>
+          </tr>
+          <tr>
+            <td><span class="perm-badge perm-auto">用户类型</span></td>
+            <td>ConfigTool, REPLTool, TungstenTool, SuggestBackgroundPRTool</td>
+            <td>仅 Anthropic 内部员工 (USER_TYPE === 'ant')</td>
+          </tr>
+          <tr>
+            <td><span class="perm-badge perm-accept">运行时检查</span></td>
+            <td>TaskCreateTool, GlobTool, GrepTool, LSPTool, WorktreeTool</td>
+            <td>取决于运行时配置和环境变量</td>
+          </tr>
+          <tr>
+            <td><span class="perm-badge perm-bypass">平台限制</span></td>
+            <td>PowerShellTool</td>
+            <td>仅 Windows 平台</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

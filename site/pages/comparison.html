@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>对比 Codex CLI - Claude Code 源码分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="../" class="nav-logo"><span class="logo-icon">&gt;_</span> Claude Code 源码分析</a>
+    <ul class="nav-links">
+      <li><a href="../">首页</a></li>
+      <li><a href="architecture.html">架构</a></li>
+      <li><a href="agent-loop.html">Agent Loop</a></li>
+      <li><a href="tools.html">工具系统</a></li>
+      <li><a href="permissions.html">权限系统</a></li>
+      <li><a href="agents.html">多智能体</a></li>
+      <li><a href="context.html">上下文管理</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-with-sidebar">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">本章内容</div>
+      <a href="#overview" class="sidebar-link active">总览</a>
+      <a href="#architecture" class="sidebar-link">架构对比</a>
+      <a href="#security" class="sidebar-link">安全模型</a>
+      <a href="#tools" class="sidebar-link">工具系统</a>
+      <a href="#agent-loop" class="sidebar-link">Agent Loop</a>
+      <a href="#philosophy" class="sidebar-link">设计哲学</a>
+    </div>
+  </aside>
+
+  <main class="page-main">
+    <div class="section-tag">Chapter 11</div>
+    <h1>对比：Claude Code vs Codex CLI</h1>
+    <p>同样是让 AI 帮你写代码，一个用 Rust 写了 81 个 crate，靠操作系统内核来保证安全；另一个用 TypeScript 做了 40 多个工具，靠额外调一次 LLM 来判断你的命令危不危险。</p>
+
+    <h2 id="overview">总览对比</h2>
+
+    <div class="arch-diagram">
+      <div style="display: flex; gap: 2rem; justify-content: center; flex-wrap: wrap;">
+        <div class="arch-box" style="border-color: var(--accent-primary); min-width: 250px;">
+          <div class="box-label" style="color: var(--accent-primary);">Claude Code</div>
+          <div class="box-name">Anthropic</div>
+          <div class="box-file">TypeScript · Bun · LLM Classifier</div>
+          <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">40+ Tools · 6 Permission Modes · MCP</div>
+        </div>
+        <div style="display: flex; align-items: center; font-size: 2rem; color: var(--text-muted);">vs</div>
+        <div class="arch-box" style="border-color: var(--accent-gold); min-width: 250px;">
+          <div class="box-label" style="color: var(--accent-gold);">Codex CLI</div>
+          <div class="box-name">OpenAI</div>
+          <div class="box-file">Rust · 81 Crates · Kernel Sandbox</div>
+          <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">Shell + File · Landlock/Seatbelt · Minimal</div>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="architecture">架构对比</h2>
+
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th>维度</th>
+            <th style="color: var(--accent-primary);">Claude Code</th>
+            <th style="color: var(--accent-gold);">Codex CLI</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>语言</strong></td>
+            <td>TypeScript (TSX)</td>
+            <td>Rust</td>
+          </tr>
+          <tr>
+            <td><strong>运行时</strong></td>
+            <td>Bun</td>
+            <td>Native Binary (tokio)</td>
+          </tr>
+          <tr>
+            <td><strong>代码规模</strong></td>
+            <td>~25MB bundle, 大型 monorepo</td>
+            <td>81 crates, 精简编译</td>
+          </tr>
+          <tr>
+            <td><strong>UI 框架</strong></td>
+            <td>React + Ink (终端 React)</td>
+            <td>Ratatui (Rust TUI)</td>
+          </tr>
+          <tr>
+            <td><strong>模块系统</strong></td>
+            <td>ESM, 动态导入, Feature Flags</td>
+            <td>Cargo workspace, 静态编译</td>
+          </tr>
+          <tr>
+            <td><strong>API 模型</strong></td>
+            <td>Claude (Anthropic/Bedrock/Vertex/Azure)</td>
+            <td>OpenAI GPT-4o / o3 系列</td>
+          </tr>
+          <tr>
+            <td><strong>扩展性</strong></td>
+            <td>MCP 协议 + Hook 系统 + 自定义 Agent</td>
+            <td>有限扩展</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="security">安全模型 — 核心差异</h2>
+
+    <div class="info-box warning">
+      <strong>这是两者最大的分歧点。</strong> 两种完全不同的安全哲学：一个信任操作系统内核，一个信任 AI 模型的判断力。
+    </div>
+
+    <div class="chapters-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="chapter-card" style="border-color: rgba(192,132,252,0.3);">
+        <h3 style="color: var(--accent-primary);">Claude Code: LLM 分类器</h3>
+        <ul style="font-size: 0.85rem; color: var(--text-secondary); padding-left: 1rem;">
+          <li>每次工具调用前，可选地调用一次 LLM 分类器判断安全性</li>
+          <li>6 种权限模式 + 7 层规则来源</li>
+          <li>分类器有 2 秒超时的推测性检查</li>
+          <li>支持危险命令模式检测 (rm -rf, force push 等)</li>
+          <li>用户可自定义 allow/deny 规则，细到命令前缀级别</li>
+          <li><strong>本质：概率性安全</strong> — 依赖模型理解命令语义</li>
+        </ul>
+      </div>
+      <div class="chapter-card" style="border-color: rgba(251,191,36,0.3);">
+        <h3 style="color: var(--accent-gold);">Codex CLI: OS 内核沙箱</h3>
+        <ul style="font-size: 0.85rem; color: var(--text-secondary); padding-left: 1rem;">
+          <li>使用 Linux Landlock LSM + macOS Seatbelt 进行内核级隔离</li>
+          <li>限制文件系统访问（只允许读写项目目录）</li>
+          <li>限制网络访问（可完全禁止）</li>
+          <li>限制进程创建和系统调用</li>
+          <li>沙箱策略由用户选择的模式决定</li>
+          <li><strong>本质：确定性安全</strong> — 依赖 OS 内核强制执行</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 id="tools">工具系统对比</h2>
+
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th>能力</th>
+            <th style="color: var(--accent-primary);">Claude Code</th>
+            <th style="color: var(--accent-gold);">Codex CLI</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>文件搜索</strong></td>
+            <td>GlobTool (glob 模式) + GrepTool (ripgrep 正则)</td>
+            <td>Shell 命令 (find, grep)</td>
+          </tr>
+          <tr>
+            <td><strong>文件编辑</strong></td>
+            <td>FileEditTool (字符串替换) + FileWriteTool (全文覆盖)</td>
+            <td>apply_patch (unified diff)</td>
+          </tr>
+          <tr>
+            <td><strong>Shell 执行</strong></td>
+            <td>BashTool (后台, 超时, 流式) + PowerShellTool</td>
+            <td>shell (在沙箱内执行)</td>
+          </tr>
+          <tr>
+            <td><strong>Web 访问</strong></td>
+            <td>WebFetchTool + WebSearchTool</td>
+            <td>无 (可被沙箱限制)</td>
+          </tr>
+          <tr>
+            <td><strong>多 Agent</strong></td>
+            <td>AgentTool (7+ 类型, Worktree 隔离, Team Swarm)</td>
+            <td>无</td>
+          </tr>
+          <tr>
+            <td><strong>代码智能</strong></td>
+            <td>LSPTool (Language Server Protocol)</td>
+            <td>无</td>
+          </tr>
+          <tr>
+            <td><strong>任务管理</strong></td>
+            <td>TaskCreate/Update/List/Get (完整任务系统)</td>
+            <td>无</td>
+          </tr>
+          <tr>
+            <td><strong>外部集成</strong></td>
+            <td>MCP 协议 (任意工具源)</td>
+            <td>无</td>
+          </tr>
+          <tr>
+            <td><strong>总工具数</strong></td>
+            <td><strong>40+</strong> (+ MCP 动态工具)</td>
+            <td><strong>~3</strong> (shell, file_read, apply_patch)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="agent-loop">Agent Loop 对比</h2>
+
+    <div class="chapters-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="chapter-card" style="border-color: rgba(192,132,252,0.3);">
+        <h3 style="color: var(--accent-primary);">Claude Code</h3>
+        <p style="font-size: 0.85rem;">
+          AsyncGenerator 驱动的循环。<br>
+          多工具并行执行。<br>
+          三级上下文压缩 (Auto/Snip/Reactive)。<br>
+          错误恢复 (max_output_tokens 重试, prompt_too_long 压缩)。<br>
+          子 Agent 可递归生成。<br>
+          Thinking 模式支持。
+        </p>
+      </div>
+      <div class="chapter-card" style="border-color: rgba(251,191,36,0.3);">
+        <h3 style="color: var(--accent-gold);">Codex CLI</h3>
+        <p style="font-size: 0.85rem;">
+          简洁的 while 循环。<br>
+          逐个工具执行。<br>
+          上下文管理简单。<br>
+          错误直接回退。<br>
+          无子 Agent 概念。<br>
+          依赖模型原生能力。
+        </p>
+      </div>
+    </div>
+
+    <h2 id="philosophy">设计哲学总结</h2>
+
+    <div class="info-box">
+      <strong>Claude Code</strong> 选择了"<strong>丰富的工具 + AI 驱动的安全</strong>"路线 — 40+ 工具覆盖几乎所有开发场景，用 LLM 分类器实现语义级的安全判断，用 MCP 协议实现无限扩展。代价是安全性依赖模型判断（概率性），且系统复杂度高。
+    </div>
+
+    <div class="info-box warning">
+      <strong>Codex CLI</strong> 选择了"<strong>极简工具 + OS 内核安全</strong>"路线 — 只需 3 个工具（shell、read、patch），用操作系统内核的 Landlock/Seatbelt 提供确定性的安全保证。代价是功能有限，扩展性低，但安全性可证明。
+    </div>
+
+    <p>这两种方法没有绝对的对错，反映了不同的工程权衡：</p>
+    <ul>
+      <li><strong>功能丰富 vs 安全简洁</strong> — 更多功能意味着更大的攻击面</li>
+      <li><strong>概率安全 vs 确定安全</strong> — LLM 可能误判，但也能理解更复杂的场景</li>
+      <li><strong>生态扩展 vs 自包含</strong> — MCP 开放但引入信任边界</li>
+    </ul>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

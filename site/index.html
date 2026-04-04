@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code 源码深度分析</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="./" class="nav-logo">
+      <span class="logo-icon">&gt;_</span>
+      Claude Code 源码分析
+    </a>
+    <ul class="nav-links">
+      <li><a href="./" class="active">首页</a></li>
+      <li><a href="pages/architecture.html">架构</a></li>
+      <li><a href="pages/agent-loop.html">Agent Loop</a></li>
+      <li><a href="pages/tools.html">工具系统</a></li>
+      <li><a href="pages/permissions.html">权限系统</a></li>
+      <li><a href="pages/agents.html">多智能体</a></li>
+      <li><a href="pages/context.html">上下文管理</a></li>
+    </ul>
+    <a href="https://github.com" class="nav-github" title="GitHub">&#9733;</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-badge">&#9672; 逆向工程 · 源码级分析</div>
+  <h1>Understanding Claude Code<br>从源码看 AI 编程智能体</h1>
+  <p>深入 Anthropic 官方 CLI 工具的内部实现 — 从架构设计到 Agent Loop，从 40+ 工具系统到多层权限模型，完整拆解一个工业级 AI 编程智能体是如何构建的。</p>
+
+  <div class="stats-bar">
+    <div class="stat-item">
+      <div class="stat-value">40+</div>
+      <div class="stat-label">内置工具</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">TypeScript</div>
+      <div class="stat-label">实现语言</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">Bun</div>
+      <div class="stat-label">运行时</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">6</div>
+      <div class="stat-label">权限模式</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value">MCP</div>
+      <div class="stat-label">协议支持</div>
+    </div>
+  </div>
+</section>
+
+<!-- Quick Architecture Overview -->
+<section class="section" id="arch-overview">
+  <div class="section-header">
+    <div class="section-tag">Architecture Overview</div>
+    <h2 class="section-title">核心架构一览</h2>
+    <p class="section-desc">Claude Code 的请求处理流程：从用户输入到 API 调用，再到工具执行的完整链路。</p>
+  </div>
+
+  <div class="arch-diagram">
+    <div class="arch-flow">
+      <div class="arch-box">
+        <div class="box-label">入口</div>
+        <div class="box-name">cli.tsx</div>
+        <div class="box-file">polyfills + bootstrap</div>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-box">
+        <div class="box-label">CLI 解析</div>
+        <div class="box-name">main.tsx</div>
+        <div class="box-file">Commander.js</div>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-box">
+        <div class="box-label">交互界面</div>
+        <div class="box-name">REPL.tsx</div>
+        <div class="box-file">React + Ink</div>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-box">
+        <div class="box-label">查询引擎</div>
+        <div class="box-name">QueryEngine</div>
+        <div class="box-file">会话管理</div>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-box">
+        <div class="box-label">API 调用</div>
+        <div class="box-name">query()</div>
+        <div class="box-file">流式响应</div>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-box">
+        <div class="box-label">工具执行</div>
+        <div class="box-name">Tools</div>
+        <div class="box-file">40+ 工具</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Chapters -->
+<section class="section" id="chapters">
+  <div class="section-header">
+    <div class="section-tag">Deep Dive</div>
+    <h2 class="section-title">深度分析章节</h2>
+    <p class="section-desc">从不同维度拆解 Claude Code 的设计与实现。</p>
+  </div>
+
+  <div class="chapters-grid">
+
+    <a href="pages/architecture.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 01</div>
+      <h3><span class="chapter-icon">&#9881;</span> 整体架构</h3>
+      <p>入口引导流程、模块组织、运行时 (Bun)、构建系统、UI 渲染层 (React + Ink)、状态管理 (Zustand)。</p>
+    </a>
+
+    <a href="pages/agent-loop.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 02</div>
+      <h3><span class="chapter-icon">&#8635;</span> Agent Loop</h3>
+      <p>核心 query() 循环、流式响应处理、工具调用编排、turn 管理、错误恢复与重试策略。</p>
+    </a>
+
+    <a href="pages/tools.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 03</div>
+      <h3><span class="chapter-icon">&#128295;</span> 工具系统</h3>
+      <p>40+ 内置工具全览：文件操作、Shell 执行、搜索、Web 访问、任务管理，以及工具注册与条件加载机制。</p>
+    </a>
+
+    <a href="pages/permissions.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 04</div>
+      <h3><span class="chapter-icon">&#128274;</span> 权限与安全</h3>
+      <p>6 种权限模式、多层规则来源 (flag → user → project → policy)、LLM 分类器自动审批、危险命令检测。</p>
+    </a>
+
+    <a href="pages/agents.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 05</div>
+      <h3><span class="chapter-icon">&#129302;</span> 多智能体</h3>
+      <p>子 Agent 类型 (Explore/Plan/General)、Agent 隔离 (Worktree/Remote)、Fork 机制、Team Swarm 多 Agent 协作。</p>
+    </a>
+
+    <a href="pages/context.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 06</div>
+      <h3><span class="chapter-icon">&#128218;</span> 上下文管理</h3>
+      <p>System Prompt 构建、CLAUDE.md 加载、Memory 系统、Compaction 压缩策略、Token Budget 管理。</p>
+    </a>
+
+    <a href="pages/hooks.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 07</div>
+      <h3><span class="chapter-icon">&#128268;</span> Hook 系统</h3>
+      <p>15+ 生命周期事件、PreToolUse/PostToolUse 钩子、权限拦截、会话钩子、异步 Hook 注册与响应。</p>
+    </a>
+
+    <a href="pages/mcp.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 08</div>
+      <h3><span class="chapter-icon">&#128279;</span> MCP 协议</h3>
+      <p>Model Context Protocol 集成、MCP Server 生命周期管理、资源读取、工具代理、Prompt 模板。</p>
+    </a>
+
+    <a href="pages/api.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 09</div>
+      <h3><span class="chapter-icon">&#9729;</span> API 与模型</h3>
+      <p>多 Provider 支持 (Anthropic/Bedrock/Vertex/Azure)、流式 API 调用、Thinking 模式、Fallback 策略。</p>
+    </a>
+
+    <a href="pages/ui.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 10</div>
+      <h3><span class="chapter-icon">&#128187;</span> 终端 UI</h3>
+      <p>Ink 框架 (React in Terminal)、自定义 reconciler、虚拟列表渲染、消息组件、权限对话框。</p>
+    </a>
+
+    <a href="pages/comparison.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 11</div>
+      <h3><span class="chapter-icon">&#9878;</span> 对比：Codex CLI</h3>
+      <p>Rust vs TypeScript、OS 内核沙箱 vs LLM 分类器、81 crate vs 40+ 工具 — 两种截然不同的安全哲学。</p>
+    </a>
+
+    <a href="pages/internals.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 12</div>
+      <h3><span class="chapter-icon">&#128270;</span> 内部机制</h3>
+      <p>Feature Flag 系统、Analytics/Telemetry、Session 管理、File History 追踪、React Compiler 输出。</p>
+    </a>
+
+  </div>
+</section>
+
+<!-- Key Design Decisions -->
+<section class="section" id="design">
+  <div class="section-header">
+    <div class="section-tag">Design Philosophy</div>
+    <h2 class="section-title">核心设计决策</h2>
+  </div>
+
+  <div class="chapters-grid">
+    <div class="chapter-card">
+      <h3 style="color: var(--accent-blue);">TypeScript + Bun</h3>
+      <p>选择 TypeScript 而非 Rust/Go，借助 Bun 的高性能运行时，实现快速迭代。单文件 Bundle 约 25MB，启动即用。</p>
+    </div>
+    <div class="chapter-card">
+      <h3 style="color: var(--accent-green);">LLM 驱动的安全</h3>
+      <p>与 Codex CLI 的 OS 级沙箱不同，Claude Code 用额外一次 LLM 调用来判断命令安全性 — 灵活但依赖模型能力。</p>
+    </div>
+    <div class="chapter-card">
+      <h3 style="color: var(--accent-gold);">React in Terminal</h3>
+      <p>使用 Ink (React for CLI) 构建终端 UI，组件化开发，配合 React Compiler 进行自动优化。</p>
+    </div>
+    <div class="chapter-card">
+      <h3 style="color: var(--accent-warm);">Generator-based Streaming</h3>
+      <p>核心 query() 函数使用 AsyncGenerator，实现真正的流式处理 — 事件逐个 yield，工具结果实时返回。</p>
+    </div>
+    <div class="chapter-card">
+      <h3 style="color: var(--accent-red);">多层权限架构</h3>
+      <p>6 种权限模式 + 7 层规则来源，从 CLI flag 到组织策略，每一层都可以 allow/deny/ask 任何工具。</p>
+    </div>
+    <div class="chapter-card">
+      <h3 style="color: var(--accent-secondary);">MCP 原生集成</h3>
+      <p>内置 Model Context Protocol 支持，MCP Server 作为可插拔的工具源，支持资源读取、工具代理、Prompt 模板。</p>
+    </div>
+  </div>
+</section>
+
+<!-- Directory Structure -->
+<section class="section" id="structure">
+  <div class="section-header">
+    <div class="section-tag">Project Structure</div>
+    <h2 class="section-title">项目目录结构</h2>
+  </div>
+
+  <div class="code-block">
+    <div class="tree">
+<span class="dir">src/</span>
+├── <span class="dir">entrypoints/</span>          <span class="desc">── 入口文件 (cli.tsx, init.ts)</span>
+├── <span class="file">main.tsx</span>              <span class="desc">── Commander.js CLI 定义 (4,683 行)</span>
+├── <span class="file">query.ts</span>              <span class="desc">── 核心 Agent Loop (query 函数)</span>
+├── <span class="file">QueryEngine.ts</span>        <span class="desc">── 高层查询引擎 (会话管理/Compaction)</span>
+├── <span class="file">Tool.ts</span>               <span class="desc">── Tool 接口定义</span>
+├── <span class="file">tools.ts</span>              <span class="desc">── 工具注册表 & 条件加载</span>
+├── <span class="dir">tools/</span>                <span class="desc">── 40+ 工具实现</span>
+│   ├── <span class="dir">AgentTool/</span>        <span class="desc">── 子 Agent 生成 & 管理</span>
+│   ├── <span class="dir">BashTool/</span>         <span class="desc">── Shell 命令执行</span>
+│   ├── <span class="dir">FileReadTool/</span>     <span class="desc">── 文件读取 (支持 PDF/图片)</span>
+│   ├── <span class="dir">FileEditTool/</span>     <span class="desc">── 文件编辑 (字符串替换)</span>
+│   ├── <span class="dir">FileWriteTool/</span>    <span class="desc">── 文件写入 (创建/覆盖)</span>
+│   ├── <span class="dir">GlobTool/</span>         <span class="desc">── 文件模式匹配</span>
+│   ├── <span class="dir">GrepTool/</span>         <span class="desc">── 内容搜索 (ripgrep)</span>
+│   ├── <span class="dir">WebFetchTool/</span>     <span class="desc">── URL 内容抓取</span>
+│   ├── <span class="dir">WebSearchTool/</span>    <span class="desc">── Web 搜索</span>
+│   ├── <span class="dir">SkillTool/</span>        <span class="desc">── 技能/命令执行</span>
+│   └── <span class="file">...</span>              <span class="desc">── 更多工具</span>
+├── <span class="dir">screens/</span>              <span class="desc">── UI 屏幕 (REPL.tsx)</span>
+├── <span class="dir">components/</span>           <span class="desc">── React/Ink 组件</span>
+│   ├── <span class="file">Messages.tsx</span>      <span class="desc">── 消息渲染</span>
+│   ├── <span class="dir">PromptInput/</span>      <span class="desc">── 用户输入</span>
+│   └── <span class="dir">permissions/</span>      <span class="desc">── 权限对话框</span>
+├── <span class="dir">services/</span>
+│   ├── <span class="dir">api/</span>              <span class="desc">── API 客户端 (claude.ts)</span>
+│   ├── <span class="dir">compact/</span>          <span class="desc">── 上下文压缩</span>
+│   └── <span class="dir">tools/</span>            <span class="desc">── 工具编排</span>
+├── <span class="dir">state/</span>                <span class="desc">── 状态管理 (AppState, Store)</span>
+├── <span class="dir">utils/</span>
+│   ├── <span class="dir">permissions/</span>      <span class="desc">── 权限引擎</span>
+│   ├── <span class="dir">hooks/</span>            <span class="desc">── Hook 系统</span>
+│   └── <span class="dir">model/</span>            <span class="desc">── Provider 选择</span>
+├── <span class="dir">context.ts</span>            <span class="desc">── System Prompt 构建</span>
+└── <span class="dir">types/</span>                <span class="desc">── 类型定义</span>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+  <p style="margin-top: 0.5rem;">Built for learning purposes. Not affiliated with Anthropic.</p>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>

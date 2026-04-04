@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>内部机制 - Claude Code 源码分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="../" class="nav-logo"><span class="logo-icon">&gt;_</span> Claude Code 源码分析</a>
+    <ul class="nav-links">
+      <li><a href="../">首页</a></li>
+      <li><a href="architecture.html">架构</a></li>
+      <li><a href="agent-loop.html">Agent Loop</a></li>
+      <li><a href="tools.html">工具系统</a></li>
+      <li><a href="permissions.html">权限系统</a></li>
+      <li><a href="agents.html">多智能体</a></li>
+      <li><a href="context.html">上下文管理</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-with-sidebar">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">本章内容</div>
+      <a href="#feature-flags" class="sidebar-link active">Feature Flags</a>
+      <a href="#session" class="sidebar-link">Session 管理</a>
+      <a href="#file-history" class="sidebar-link">File History</a>
+      <a href="#analytics" class="sidebar-link">Analytics</a>
+      <a href="#stubs" class="sidebar-link">Stub 模块</a>
+      <a href="#react-compiler" class="sidebar-link">React Compiler</a>
+    </div>
+  </aside>
+
+  <main class="page-main">
+    <div class="section-tag">Chapter 12</div>
+    <h1>内部机制</h1>
+    <p>Feature Flags、Session 管理、文件历史追踪 — 这些是支撑 Claude Code 运行的内部基础设施。</p>
+
+    <h2 id="feature-flags">Feature Flag 系统</h2>
+    <p>Claude Code 使用 <code>feature()</code> 函数控制功能开关。在反编译版本中，<code>feature()</code> 被 polyfill 为始终返回 <code>false</code>。</p>
+
+    <h3>已知 Feature Flags</h3>
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th>Flag 名称</th>
+            <th>控制的功能</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="tool-name">COORDINATOR_MODE</span></td><td>协调者模式 — 多 Agent 协调</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">KAIROS</span></td><td>后台主动模式 — 异步任务执行</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">PROACTIVE</span></td><td>主动推送 — 无需用户输入主动操作</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">AGENT_TRIGGERS</span></td><td>Agent 触发器 — Cron 定时任务</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">AGENT_TRIGGERS_REMOTE</span></td><td>远程 Agent 触发器</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">ENABLE_AGENT_SWARMS</span></td><td>多 Agent 群集 — Team 系统</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">WEB_BROWSER_TOOL</span></td><td>浏览器自动化工具</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">MONITOR_TOOL</span></td><td>系统监控工具</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">TERMINAL_PANEL</span></td><td>终端面板捕获</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">UDS_INBOX</span></td><td>Unix Domain Socket 通信</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">WORKFLOW_SCRIPTS</span></td><td>工作流脚本执行</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">HISTORY_SNIP</span></td><td>历史消息剪切</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">TRANSCRIPT_CLASSIFIER</span></td><td>对话分类器</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+          <tr><td><span class="tool-name">FORK_SUBAGENT</span></td><td>Fork 子 Agent 模式</td><td><span class="perm-badge perm-bypass">禁用</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="info-box">
+      <strong>洞察：</strong> 这些 Feature Flags 揭示了 Claude Code 的开发方向 — 浏览器自动化、多 Agent 群集、主动式操作、定时触发器等。虽然当前版本中全部禁用，但代码已经就位。
+    </div>
+
+    <h2 id="session">Session 管理</h2>
+    <p>Session 状态通过模块级单例维护（src/bootstrap/state.ts）：</p>
+
+    <div class="code-block">
+<span class="comment">// Session 级全局状态</span>
+<span class="keyword">const</span> sessionState = {
+  sessionId: <span class="string">crypto.randomUUID()</span>,   <span class="comment">// 唯一会话 ID</span>
+  cwd: <span class="string">process.cwd()</span>,                <span class="comment">// 当前工作目录</span>
+  projectRoot: <span class="fn">findProjectRoot</span>(),     <span class="comment">// 项目根目录</span>
+  totalInputTokens: <span class="keyword">0</span>,               <span class="comment">// 输入 token 累计</span>
+  totalOutputTokens: <span class="keyword">0</span>,              <span class="comment">// 输出 token 累计</span>
+  totalCacheReadTokens: <span class="keyword">0</span>,           <span class="comment">// 缓存读取 token</span>
+  totalCacheWriteTokens: <span class="keyword">0</span>,          <span class="comment">// 缓存写入 token</span>
+};
+    </div>
+
+    <h2 id="file-history">File History 追踪</h2>
+    <p>Claude Code 追踪会话期间所有文件的修改历史，用于：</p>
+    <ul>
+      <li><strong>检测意外修改</strong> — FileEditTool 在编辑前检查文件是否被外部修改</li>
+      <li><strong>Git Diff 生成</strong> — 显示修改前后的差异</li>
+      <li><strong>回滚支持</strong> — 记录文件的原始内容</li>
+      <li><strong>BashTool 集成</strong> — 命令执行后检测文件变更</li>
+    </ul>
+
+    <h2 id="analytics">Analytics / Telemetry</h2>
+    <p>原版 Claude Code 集成了多个分析系统，在反编译版本中全部被 stub：</p>
+
+    <div class="chapters-grid" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="chapter-card">
+        <h3 style="color: var(--text-muted); font-size: 0.95rem;">GrowthBook</h3>
+        <p>A/B 测试和 Feature Flag 远程管理。已 stub 为空实现。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--text-muted); font-size: 0.95rem;">Sentry</h3>
+        <p>错误监控和性能追踪。已 stub 为空实现。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--text-muted); font-size: 0.95rem;">Custom Analytics</h3>
+        <p>自定义事件追踪 (logEvent)。已 stub 为空实现。</p>
+      </div>
+    </div>
+
+    <h2 id="stubs">Stub 模块</h2>
+    <p>以下模块在反编译版本中被 stub 或删除：</p>
+
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead>
+          <tr><th>模块</th><th>状态</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Computer Use (@ant/*)</td><td><span class="perm-badge perm-bypass">Stub</span></td><td>packages/@ant/ 中的空包</td></tr>
+          <tr><td>*-napi 包 (audio, image, url)</td><td><span class="perm-badge perm-bypass">Stub</span></td><td>原生模块的空实现</td></tr>
+          <tr><td>Analytics / GrowthBook / Sentry</td><td><span class="perm-badge perm-bypass">空实现</span></td><td>所有分析函数为 no-op</td></tr>
+          <tr><td>Magic Docs / Voice Mode</td><td><span class="perm-badge" style="background: rgba(248,113,113,0.15); color: var(--accent-red);">已删除</span></td><td>完全移除</td></tr>
+          <tr><td>LSP Server</td><td><span class="perm-badge" style="background: rgba(248,113,113,0.15); color: var(--accent-red);">已删除</span></td><td>完全移除</td></tr>
+          <tr><td>Plugins / Marketplace</td><td><span class="perm-badge" style="background: rgba(248,113,113,0.15); color: var(--accent-red);">已删除</span></td><td>完全移除</td></tr>
+          <tr><td>MCP OAuth</td><td><span class="perm-badge perm-auto">简化</span></td><td>简化实现</td></tr>
+          <tr><td>color-diff-napi</td><td><span class="perm-badge perm-accept">完整</span></td><td>唯一完整保留的 napi 包</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="react-compiler">React Compiler 输出</h2>
+    <p>反编译的组件代码包含 React Compiler 的自动优化产物：</p>
+
+    <div class="code-block">
+<span class="comment">// React Compiler 自动注入的 memoization</span>
+<span class="keyword">import</span> { c <span class="keyword">as</span> _c } <span class="keyword">from</span> <span class="string">'react/compiler-runtime'</span>;
+
+<span class="keyword">function</span> <span class="fn">MyComponent</span>(props) {
+  <span class="keyword">const</span> $ = <span class="fn">_c</span>(<span class="keyword">8</span>);  <span class="comment">// 分配 8 个缓存槽</span>
+
+  <span class="keyword">let</span> t0;
+  <span class="keyword">if</span> ($[<span class="keyword">0</span>] !== props.value) {
+    t0 = <span class="fn">expensiveComputation</span>(props.value);
+    $[<span class="keyword">0</span>] = props.value;
+    $[<span class="keyword">1</span>] = t0;
+  } <span class="keyword">else</span> {
+    t0 = $[<span class="keyword">1</span>];  <span class="comment">// 从缓存中取</span>
+  }
+
+  <span class="comment">// ... 这种模式在整个代码库中重复出现</span>
+}
+    </div>
+
+    <div class="info-box">
+      <strong>阅读提示：</strong> 遇到 <code>_c(N)</code> 和 <code>$[i]</code> 模式时，可以忽略这些 memoization 逻辑，聚焦于实际的业务代码。这只是 React Compiler 的自动优化，不影响功能理解。
+    </div>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

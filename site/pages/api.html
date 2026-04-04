@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API 与模型 - Claude Code 源码分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="../" class="nav-logo"><span class="logo-icon">&gt;_</span> Claude Code 源码分析</a>
+    <ul class="nav-links">
+      <li><a href="../">首页</a></li>
+      <li><a href="architecture.html">架构</a></li>
+      <li><a href="agent-loop.html">Agent Loop</a></li>
+      <li><a href="tools.html">工具系统</a></li>
+      <li><a href="permissions.html">权限系统</a></li>
+      <li><a href="agents.html">多智能体</a></li>
+      <li><a href="context.html">上下文管理</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-with-sidebar">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">本章内容</div>
+      <a href="#providers" class="sidebar-link active">多 Provider</a>
+      <a href="#api-client" class="sidebar-link">API 客户端</a>
+      <a href="#streaming" class="sidebar-link">流式调用</a>
+      <a href="#thinking" class="sidebar-link">Thinking 模式</a>
+      <a href="#fallback" class="sidebar-link">Fallback 策略</a>
+    </div>
+  </aside>
+
+  <main class="page-main">
+    <div class="section-tag">Chapter 09</div>
+    <h1>API 与模型集成</h1>
+    <p>Claude Code 支持多个 API Provider，通过统一的客户端层实现流式调用、Thinking 模式和故障转移。</p>
+
+    <h2 id="providers">多 Provider 支持</h2>
+    <p>Claude Code 不仅可以直连 Anthropic API，还支持多种云厂商的部署：</p>
+
+    <div class="chapters-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-primary); font-size: 0.95rem;">Anthropic 直连</h3>
+        <p>默认 Provider。直接调用 Anthropic API。支持所有 Beta 功能（prompt caching, extended thinking）。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-gold); font-size: 0.95rem;">AWS Bedrock</h3>
+        <p>通过 Amazon Bedrock 访问 Claude。使用 AWS 凭证认证。可能有功能差异。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-blue); font-size: 0.95rem;">Google Vertex AI</h3>
+        <p>通过 Google Cloud Vertex AI 访问 Claude。使用 GCP 凭证认证。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-green); font-size: 0.95rem;">Azure Foundry</h3>
+        <p>通过 Azure 访问 Claude。使用 Azure 凭证认证。</p>
+      </div>
+    </div>
+
+    <p>Provider 选择逻辑在 <code>src/utils/model/providers.ts</code>：</p>
+
+    <div class="code-block">
+<span class="comment">// Provider 选择优先级</span>
+1. 环境变量 <span class="string">CLAUDE_CODE_PROVIDER</span>
+2. 配置文件 settings.json
+3. CLI 参数 --provider
+4. 默认: <span class="string">"anthropic"</span>
+    </div>
+
+    <h2 id="api-client">API 客户端 (claude.ts)</h2>
+    <p>核心 API 客户端位于 <code>src/services/api/claude.ts</code>，负责：</p>
+
+    <ul>
+      <li><strong>请求构建</strong> — 组装 system prompt、messages、tools、betas 列表</li>
+      <li><strong>流式调用</strong> — 调用 Anthropic SDK 的 streaming endpoint</li>
+      <li><strong>事件处理</strong> — 解析 <code>BetaRawMessageStreamEvent</code> 事件流</li>
+      <li><strong>错误处理</strong> — 速率限制、token 超限、网络错误</li>
+    </ul>
+
+    <div class="code-block">
+<span class="comment">// API 调用核心 (简化)</span>
+<span class="keyword">async function</span> <span class="fn">ask</span>(params: <span class="type">AskParams</span>) {
+  <span class="keyword">const</span> requestParams = {
+    model: params.model,
+    max_tokens: params.maxTokens,
+    system: params.systemPrompt,     <span class="comment">// BetaSystemPromptBlock[]</span>
+    messages: params.messages,        <span class="comment">// 标准化后的消息</span>
+    tools: params.tools,              <span class="comment">// 工具 schema 列表</span>
+    stream: <span class="keyword">true</span>,
+    betas: [
+      <span class="string">'prompt-caching-2024-07-31'</span>,
+      <span class="string">'extended-thinking-2025-04-14'</span>,
+      <span class="comment">// ... 更多 beta 功能</span>
+    ],
+  };
+
+  <span class="comment">// 调用 Anthropic SDK</span>
+  <span class="keyword">return</span> anthropic.messages.<span class="fn">stream</span>(requestParams);
+}
+    </div>
+
+    <h2 id="streaming">流式响应处理</h2>
+    <p>API 返回的流式事件类型：</p>
+
+    <div class="code-block">
+<span class="type">BetaRawMessageStreamEvent</span>
+├── <span class="string">message_start</span>         <span class="comment">// 消息开始 (含 usage 信息)</span>
+├── <span class="string">content_block_start</span>   <span class="comment">// 内容块开始 (text/tool_use/thinking)</span>
+├── <span class="string">content_block_delta</span>   <span class="comment">// 内容增量</span>
+│   ├── <span class="string">text_delta</span>        <span class="comment">// 文本增量</span>
+│   ├── <span class="string">input_json_delta</span>  <span class="comment">// 工具输入 JSON 增量</span>
+│   └── <span class="string">thinking_delta</span>    <span class="comment">// 思考内容增量</span>
+├── <span class="string">content_block_stop</span>    <span class="comment">// 内容块结束</span>
+└── <span class="string">message_stop</span>          <span class="comment">// 消息结束 (含 stop_reason)</span>
+
+<span class="comment">// stop_reason 类型</span>
+<span class="string">'end_turn'</span>             <span class="comment">// 正常结束</span>
+<span class="string">'tool_use'</span>             <span class="comment">// 需要执行工具</span>
+<span class="string">'max_tokens'</span>           <span class="comment">// 达到 token 限制</span>
+    </div>
+
+    <h2 id="thinking">Extended Thinking</h2>
+    <p>Extended Thinking 让模型在生成回答前先进行推理（chain-of-thought）：</p>
+
+    <ul>
+      <li>Thinking blocks 作为 <code>content_block</code> 在流式事件中传输</li>
+      <li>默认最大 10,000 tokens</li>
+      <li>三种模式：Adaptive (自动)、Explicit (手动)、Disabled</li>
+      <li>Thinking 内容显示在 UI 中但不计入对话历史的"可见"部分</li>
+    </ul>
+
+    <h2 id="fallback">Fallback 策略</h2>
+    <p>当主模型调用失败时，系统会自动切换到备用模型：</p>
+
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div class="flow-content">
+          <h4>主模型调用失败</h4>
+          <p>API 错误、速率限制、或模型不可用。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div class="flow-content">
+          <h4>切换 Fallback Model</h4>
+          <p>自动使用备用模型重试请求。抛出 <code>FallbackTriggeredError</code>。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div class="flow-content">
+          <h4>记录分析事件</h4>
+          <p>触发 <code>tengu_model_fallback</code> 分析事件，用于监控和统计。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <strong>Prompt Caching：</strong> Claude Code 利用 Anthropic 的 prompt caching 功能，将 System Prompt 作为可缓存的 block 传入。相同的 System Prompt 在多次调用中只需传输一次，显著减少 token 使用和延迟。Fork Agent 也利用此特性，传递父级的渲染 System Prompt 以复用缓存。
+    </div>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多智能体系统 - Claude Code 源码分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="../" class="nav-logo"><span class="logo-icon">&gt;_</span> Claude Code 源码分析</a>
+    <ul class="nav-links">
+      <li><a href="../">首页</a></li>
+      <li><a href="architecture.html">架构</a></li>
+      <li><a href="agent-loop.html">Agent Loop</a></li>
+      <li><a href="tools.html">工具系统</a></li>
+      <li><a href="permissions.html">权限系统</a></li>
+      <li><a href="agents.html" class="active">多智能体</a></li>
+      <li><a href="context.html">上下文管理</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-with-sidebar">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">本章内容</div>
+      <a href="#overview" class="sidebar-link active">Agent 概览</a>
+      <a href="#types" class="sidebar-link">内置 Agent 类型</a>
+      <a href="#spawn" class="sidebar-link">生成流程</a>
+      <a href="#isolation" class="sidebar-link">隔离机制</a>
+      <a href="#fork" class="sidebar-link">Fork 子 Agent</a>
+      <a href="#team" class="sidebar-link">Team Swarm</a>
+      <a href="#tools-filter" class="sidebar-link">工具过滤</a>
+    </div>
+  </aside>
+
+  <main class="page-main">
+    <div class="section-tag">Chapter 05</div>
+    <h1>多智能体系统</h1>
+    <p>Claude Code 的 AgentTool 是最复杂的工具之一 — 它可以生成自主的子 Agent，每个 Agent 有独立的工具池、权限模式和系统提示。</p>
+
+    <h2 id="overview">Agent 系统架构</h2>
+
+    <div class="arch-diagram">
+      <div style="display: flex; flex-direction: column; gap: 1rem; align-items: center;">
+        <div class="arch-box" style="width: 80%; max-width: 600px; border-color: var(--accent-primary);">
+          <div class="box-label">主 Agent (Parent)</div>
+          <div class="box-name">用户对话上下文 + 完整工具池</div>
+        </div>
+        <div style="display: flex; gap: 1.5rem; justify-content: center; flex-wrap: wrap;">
+          <div style="text-align: center;">
+            <div class="arch-arrow" style="transform: rotate(90deg); margin: 0.5rem 0;">&#8595;</div>
+            <div class="arch-box" style="border-color: var(--accent-blue);">
+              <div class="box-label">Explore Agent</div>
+              <div class="box-name">代码搜索<br>只读工具</div>
+            </div>
+          </div>
+          <div style="text-align: center;">
+            <div class="arch-arrow" style="transform: rotate(90deg); margin: 0.5rem 0;">&#8595;</div>
+            <div class="arch-box" style="border-color: var(--accent-green);">
+              <div class="box-label">Plan Agent</div>
+              <div class="box-name">架构规划<br>只读工具</div>
+            </div>
+          </div>
+          <div style="text-align: center;">
+            <div class="arch-arrow" style="transform: rotate(90deg); margin: 0.5rem 0;">&#8595;</div>
+            <div class="arch-box" style="border-color: var(--accent-gold);">
+              <div class="box-label">General Agent</div>
+              <div class="box-name">多步任务<br>完整工具</div>
+            </div>
+          </div>
+          <div style="text-align: center;">
+            <div class="arch-arrow" style="transform: rotate(90deg); margin: 0.5rem 0;">&#8595;</div>
+            <div class="arch-box" style="border-color: var(--accent-warm);">
+              <div class="box-label">Worktree Agent</div>
+              <div class="box-name">隔离开发<br>独立分支</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="types">内置 Agent 类型</h2>
+
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th>Agent 类型</th>
+            <th>用途</th>
+            <th>可用工具</th>
+            <th>模型</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tool-name">general-purpose</span></td>
+            <td>通用多步骤任务处理，搜索代码，执行复杂操作</td>
+            <td>全部工具 (除受限工具)</td>
+            <td>继承父级</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">Explore</span></td>
+            <td>快速代码库探索，文件搜索，关键词搜索</td>
+            <td>只读：Glob, Grep, Read, WebFetch, WebSearch (无 Agent, Edit, Write)</td>
+            <td>继承父级</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">Plan</span></td>
+            <td>设计实现方案，识别关键文件，权衡架构</td>
+            <td>只读：同 Explore (无 Agent, Edit, Write)</td>
+            <td>继承父级</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">code-reviewer</span></td>
+            <td>代码审查，发现问题</td>
+            <td>只读工具</td>
+            <td>继承父级</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">verification</span></td>
+            <td>验证任务完成情况</td>
+            <td>只读工具</td>
+            <td>继承父级</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">claude-code-guide</span></td>
+            <td>回答 Claude Code 使用问题</td>
+            <td>Glob, Grep, Read, WebFetch, WebSearch</td>
+            <td>继承父级</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">statusline-setup</span></td>
+            <td>配置状态行设置</td>
+            <td>Read, Edit</td>
+            <td>继承父级</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="info-box">
+      <strong>自定义 Agent：</strong> 除内置类型外，用户可以在 settings.json 或 .claude/agents/ 目录中定义自定义 Agent 类型，指定专属的工具集、系统提示和权限模式。
+    </div>
+
+    <h2 id="spawn">Agent 生成流程</h2>
+
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div class="flow-content">
+          <h4>调用 AgentTool</h4>
+          <p>主 Agent 决定需要子 Agent 帮助，调用 <code>AgentTool</code>，指定 <code>subagent_type</code>、<code>prompt</code>、<code>description</code>。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div class="flow-content">
+          <h4>Agent 定义解析</h4>
+          <p>从内置定义 + 用户配置 + 插件中加载 Agent 定义。验证 Agent 存在且未被权限拒绝。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div class="flow-content">
+          <h4>工具池组装</h4>
+          <p><code>resolveAgentTools()</code> → <code>filterToolsForAgent()</code>：根据 Agent 的 allowlist/denylist 过滤工具。初始化 Agent 专属的 MCP Server。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">4</div>
+        <div class="flow-content">
+          <h4>System Prompt 构建</h4>
+          <p>Agent 的 <code>getSystemPrompt()</code> 注入专属系统提示 + 环境上下文。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">5</div>
+        <div class="flow-content">
+          <h4>query() 循环执行</h4>
+          <p>调用 <code>runAgent()</code> → 内部启动独立的 <code>query()</code> 循环。Agent 自主执行，通过 yield 流式返回事件。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">6</div>
+        <div class="flow-content">
+          <h4>结果返回</h4>
+          <p>同步 Agent：结果流式累积到消息历史。<br>异步 Agent：结果持久化到 sidechain 文件，稍后读取。</p>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="isolation">隔离机制</h2>
+    <p>Agent 可以在不同级别的隔离环境中运行：</p>
+
+    <div class="chapters-grid" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-blue); font-size: 0.95rem;">进程内 (默认)</h3>
+        <p>与父 Agent 共享进程和工作目录。最轻量级，适合快速子任务。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-green); font-size: 0.95rem;">Worktree 隔离</h3>
+        <p>创建 Git Worktree，独立分支和工作副本。node_modules 符号链接到父目录节省磁盘。无修改时自动清理。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-gold); font-size: 0.95rem;">Remote 隔离</h3>
+        <p>远程 CCR 环境执行。始终后台运行，返回 task ID 和 session URL。Anthropic 内部功能。</p>
+      </div>
+    </div>
+
+    <div class="code-block">
+<span class="comment">// Worktree 隔离的创建过程</span>
+<span class="keyword">async function</span> <span class="fn">createAgentWorktree</span>(agentId: <span class="keyword">string</span>) {
+  <span class="comment">// 1. 创建新分支</span>
+  <span class="keyword">const</span> branch = <span class="string">`agent-${agentId}`</span>;
+  <span class="keyword">await</span> git.<span class="fn">worktreeAdd</span>(worktreePath, branch);
+
+  <span class="comment">// 2. 符号链接 node_modules (节省磁盘)</span>
+  <span class="keyword">await</span> <span class="fn">symlink</span>(parentNodeModules, worktreeNodeModules);
+
+  <span class="comment">// 3. 返回隔离的工作目录</span>
+  <span class="keyword">return</span> { path: worktreePath, branch };
+}
+    </div>
+
+    <h2 id="fork">Fork 子 Agent</h2>
+    <p>Fork 是一种特殊的 Agent 生成模式 — 子 Agent 继承父 Agent 的完整对话上下文：</p>
+
+    <ul>
+      <li><strong>触发条件：</strong> <code>isForkSubagentEnabled()</code> 为 true 且未指定 <code>subagent_type</code></li>
+      <li><strong>上下文继承：</strong> <code>buildForkedMessages()</code> 创建合成用户消息，包含父级的工具结果 + 指令</li>
+      <li><strong>防递归：</strong> 检测 <code>FORK_BOILERPLATE_TAG</code>，阻止 Fork 的 Fork</li>
+      <li><strong>权限冒泡：</strong> <code>permissionMode: 'bubble'</code> — 权限提示冒泡到父会话终端</li>
+      <li><strong>Prompt 缓存：</strong> 字节精确传递父的渲染 System Prompt，利用缓存</li>
+    </ul>
+
+    <h2 id="team">Team Swarm 多 Agent 协作</h2>
+    <p>Team 系统允许创建多个并行协作的 Agent：</p>
+
+    <div class="code-block">
+<span class="comment">// Team 创建流程</span>
+<span class="keyword">const</span> team = <span class="keyword">await</span> <span class="fn">TeamCreateTool</span>.<span class="fn">call</span>({
+  team_name: <span class="string">"refactor-auth"</span>,
+  description: <span class="string">"重构认证模块"</span>,
+  agent_type: <span class="string">"lead"</span>
+});
+
+<span class="comment">// 团队结构</span>
+<span class="type">Team</span> {
+  name: <span class="string">"refactor-auth"</span>
+  lead: <span class="type">Agent</span>           <span class="comment">// Team Lead (协调者)</span>
+  teammates: <span class="type">Agent</span>[]    <span class="comment">// 工作 Agent 列表</span>
+  taskList: <span class="type">TaskList</span>    <span class="comment">// 隔离的任务列表</span>
+}
+
+<span class="comment">// Agent 间通信</span>
+<span class="fn">SendMessageTool</span>({
+  to: <span class="string">"teammate-1"</span>,    <span class="comment">// 点对点</span>
+  to: <span class="string">"*"</span>,              <span class="comment">// 广播</span>
+  message: <span class="string">"完成后端 API 修改"</span>
+});
+    </div>
+
+    <h2 id="tools-filter">工具过滤策略</h2>
+
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead>
+          <tr>
+            <th>Agent 类型</th>
+            <th>允许的工具</th>
+            <th>禁止的工具</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>内置 Agent</td>
+            <td>根据定义的 allowlist</td>
+            <td>EnterWorktree, ExitWorktree, 插件工具</td>
+          </tr>
+          <tr>
+            <td>自定义 Agent</td>
+            <td>根据定义的 allowlist</td>
+            <td>Agent, SkillTool, RemoteAgent (更严格)</td>
+          </tr>
+          <tr>
+            <td>异步 Agent</td>
+            <td>Bash, Read, Write, WebSearch, Glob, Grep, Agent, Skill, SendMessage</td>
+            <td>其他所有工具</td>
+          </tr>
+          <tr>
+            <td>进程内队友</td>
+            <td>IN_PROCESS_TEAMMATE_ALLOWED_TOOLS (专属列表)</td>
+            <td>其他所有工具</td>
+          </tr>
+          <tr>
+            <td>Fork Agent</td>
+            <td>全部工具 (<code>tools: ['*']</code>)</td>
+            <td>无 (但不能再次 Fork)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>
