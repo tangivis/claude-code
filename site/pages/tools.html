@@ -46,13 +46,13 @@
   <main class="page-main">
     <div class="section-tag">Chapter 03</div>
     <h1>工具系统</h1>
-    <p>Claude Code 拥有 40+ 内置工具，每个工具都有独立的目录、输入 Schema、执行逻辑和可选的 React 渲染组件。</p>
+    <p>Claude Code 拥有 54 个内置工具，每个工具都有独立的目录、输入 Schema、执行逻辑和可选的 React 渲染组件。</p>
 
     <h2 id="overview">工具系统概览</h2>
     <div class="stats-bar" style="justify-content: flex-start; gap: 2rem; margin: 1.5rem 0;">
-      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">40+</div><div class="stat-label">内置工具</div></div>
+      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">54</div><div class="stat-label">内置工具</div></div>
       <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">8</div><div class="stat-label">工具分类</div></div>
-      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">15+</div><div class="stat-label">Feature 门控</div></div>
+      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">25+</div><div class="stat-label">Feature 门控</div></div>
     </div>
 
     <h2 id="interface">Tool 接口定义</h2>
@@ -326,6 +326,98 @@
             <td><span class="tool-category cat-config">调度</span></td>
             <td>管理远程 Agent 触发器</td>
             <td>action, trigger_id, body</td>
+          </tr>
+
+          <!-- 补充遗漏的工具 -->
+          <tr>
+            <td><span class="tool-name">SleepTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>暂停执行指定时间</td>
+            <td>duration_ms</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">MonitorTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>系统监控和进程检查</td>
+            <td>(feature-gated)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">WebBrowserTool</span></td>
+            <td><span class="tool-category cat-web">Web</span></td>
+            <td>浏览器自动化导航</td>
+            <td>(feature-gated)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">ConfigTool</span></td>
+            <td><span class="tool-category cat-config">配置</span></td>
+            <td>读取/设置 Claude Code 配置</td>
+            <td>setting, value</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">REPLTool</span></td>
+            <td><span class="tool-category cat-shell">Shell</span></td>
+            <td>交互式 REPL 环境</td>
+            <td>(ant-only)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">TodoWriteTool</span></td>
+            <td><span class="tool-category cat-task">任务</span></td>
+            <td>Legacy 任务清单管理</td>
+            <td>todos (array)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">TeamDeleteTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>删除多 Agent 协作团队</td>
+            <td>team_name</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">DiscoverSkillsTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>发现可用技能/命令</td>
+            <td>(无参数)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">ReviewArtifactTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>审查生成的产物</td>
+            <td>(artifact info)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">VerifyPlanExecutionTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>验证计划执行完成度</td>
+            <td>(env-gated)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">WorkflowTool</span></td>
+            <td><span class="tool-category cat-agent">Agent</span></td>
+            <td>执行工作流脚本</td>
+            <td>(feature-gated)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">SnipTool</span></td>
+            <td><span class="tool-category cat-config">交互</span></td>
+            <td>剪切/管理对话历史</td>
+            <td>(feature-gated)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">TerminalCaptureTool</span></td>
+            <td><span class="tool-category cat-shell">Shell</span></td>
+            <td>捕获终端输出</td>
+            <td>(feature-gated)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">PushNotificationTool</span></td>
+            <td><span class="tool-category cat-config">通知</span></td>
+            <td>发送推送通知</td>
+            <td>(KAIROS feature-gated)</td>
+          </tr>
+          <tr>
+            <td><span class="tool-name">TestingPermissionTool</span></td>
+            <td><span class="tool-category cat-config">测试</span></td>
+            <td>测试环境权限工具</td>
+            <td>(NODE_ENV=test only)</td>
           </tr>
         </tbody>
       </table>

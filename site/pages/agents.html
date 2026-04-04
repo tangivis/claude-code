@@ -197,7 +197,7 @@
     <h2 id="isolation">隔离机制</h2>
     <p>Agent 可以在不同级别的隔离环境中运行：</p>
 
-    <div class="chapters-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="chapters-grid" style="grid-template-columns: repeat(2, 1fr);">
       <div class="chapter-card">
         <h3 style="color: var(--accent-blue); font-size: 0.95rem;">进程内 (默认)</h3>
         <p>与父 Agent 共享进程和工作目录。最轻量级，适合快速子任务。</p>
@@ -209,6 +209,10 @@
       <div class="chapter-card">
         <h3 style="color: var(--accent-gold); font-size: 0.95rem;">Remote 隔离</h3>
         <p>远程 CCR 环境执行。始终后台运行，返回 task ID 和 session URL。Anthropic 内部功能。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-primary); font-size: 0.95rem;">Bridge 隔离</h3>
+        <p>通过 Bridge 协议远程会话（src/bridge/ 34 文件）。支持多会话并发 (默认 32)、JWT 认证、Worktree + same-dir 模式。由 BRIDGE_MODE flag 控制。<a href="bridge.html">详见 Ch13</a>。</p>
       </div>
     </div>
 

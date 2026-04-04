@@ -62,25 +62,47 @@
       </div>
     </div>
 
+    <div class="stats-bar" style="justify-content: flex-start; gap: 2rem; margin: 1.5rem 0;">
+      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">170+</div><div class="stat-label">React 组件</div></div>
+      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">16</div><div class="stat-label">设计系统组件</div></div>
+      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">596</div><div class="stat-label">.ts/.tsx 文件</div></div>
+    </div>
+
     <h2 id="components">核心组件树</h2>
 
     <div class="code-block">
-<span class="comment">// 组件层级结构</span>
+<span class="comment">// 组件层级结构 (170+ 组件, 596 文件)</span>
 <span class="type">App.tsx</span>                     <span class="comment">── 根 Provider (AppState, Stats, FpsMetrics)</span>
-├── <span class="type">REPL.tsx</span>                <span class="comment">── 交互 REPL 屏幕</span>
+├── <span class="type">REPL.tsx</span>                <span class="comment">── 交互 REPL (5005行, 54 useState, 68 useEffect)</span>
 │   ├── <span class="type">Messages.tsx</span>        <span class="comment">── 消息列表容器</span>
 │   │   └── <span class="type">MessageRow.tsx</span>  <span class="comment">── 单条消息渲染</span>
 │   │       ├── <span class="fn">UserMessage</span>   <span class="comment">── 用户输入</span>
 │   │       ├── <span class="fn">AssistantMsg</span>  <span class="comment">── AI 回复 (text + thinking)</span>
 │   │       └── <span class="fn">ToolResult</span>    <span class="comment">── 工具结果 (每个工具有自己的 UI)</span>
 │   ├── <span class="type">PromptInput/</span>        <span class="comment">── 用户输入区域</span>
-│   │   ├── <span class="fn">InputBox</span>       <span class="comment">── 文本输入框</span>
-│   │   ├── <span class="fn">StatusLine</span>     <span class="comment">── 状态栏 (token, model, mode)</span>
-│   │   └── <span class="fn">Autocomplete</span>   <span class="comment">── 命令自动补全</span>
-│   └── <span class="type">permissions/</span>        <span class="comment">── 权限对话框</span>
-│       ├── <span class="fn">PermPrompt</span>     <span class="comment">── 权限确认 UI</span>
-│       └── <span class="fn">PermOptions</span>    <span class="comment">── Allow/Deny 选项</span>
-└── <span class="type">ThemeProvider</span>           <span class="comment">── 主题注入</span>
+│   ├── <span class="type">permissions/</span>        <span class="comment">── 权限对话框</span>
+│   ├── <span class="type">tasks/</span>              <span class="comment">── 任务面板</span>
+│   └── <span class="type">teams/</span>              <span class="comment">── 团队协作 UI</span>
+├── <span class="type">design-system/</span>          <span class="comment">── 16 个主题 UI 原语 (见下方)</span>
+├── <span class="type">diff/ + StructuredDiff/</span> <span class="comment">── Diff 渲染组件</span>
+├── <span class="type">Settings/</span>               <span class="comment">── 设置界面</span>
+├── <span class="type">wizard/</span>                 <span class="comment">── 向导流程</span>
+├── <span class="type">buddy/</span>                  <span class="comment">── Buddy 伴侣精灵 UI</span>
+└── <span class="type">ThemeProvider</span>           <span class="comment">── 主题注入 (dark/light + auto)</span>
+    </div>
+
+    <h2 id="design-system">Design System (16 组件)</h2>
+    <p><code>src/components/design-system/</code> 提供可复用的主题化 UI 原语：</p>
+
+    <div class="chapters-grid" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="chapter-card" style="padding: 1rem;"><h3 style="font-size: 0.85rem; color: var(--accent-blue);">Dialog</h3><p style="font-size: 0.75rem;">模态对话框</p></div>
+      <div class="chapter-card" style="padding: 1rem;"><h3 style="font-size: 0.85rem; color: var(--accent-green);">FuzzyPicker</h3><p style="font-size: 0.75rem;">模糊搜索列表 (11KB)</p></div>
+      <div class="chapter-card" style="padding: 1rem;"><h3 style="font-size: 0.85rem; color: var(--accent-gold);">Tabs</h3><p style="font-size: 0.75rem;">选项卡界面 (10KB)</p></div>
+      <div class="chapter-card" style="padding: 1rem;"><h3 style="font-size: 0.85rem; color: var(--accent-primary);">ThemedBox</h3><p style="font-size: 0.75rem;">主题容器 (5KB)</p></div>
+      <div class="chapter-card" style="padding: 1rem;"><h3 style="font-size: 0.85rem; color: var(--accent-warm);">ThemedText</h3><p style="font-size: 0.75rem;">主题文本 (4KB)</p></div>
+      <div class="chapter-card" style="padding: 1rem;"><h3 style="font-size: 0.85rem; color: var(--accent-red);">ProgressBar</h3><p style="font-size: 0.75rem;">进度条</p></div>
+      <div class="chapter-card" style="padding: 1rem;"><h3 style="font-size: 0.85rem; color: var(--accent-secondary);">ThemeProvider</h3><p style="font-size: 0.75rem;">主题上下文 + 预览/保存</p></div>
+      <div class="chapter-card" style="padding: 1rem;"><h3 style="font-size: 0.85rem; color: var(--text-secondary);">+9 更多</h3><p style="font-size: 0.75rem;">Byline, Divider, ListItem, LoadingState, Pane, Ratchet, StatusIcon, KeyboardShortcutHint, color.ts</p></div>
     </div>
 
     <h2 id="repl">REPL 屏幕</h2>

@@ -55,7 +55,7 @@
       </div>
       <div class="chapter-card">
         <h3 style="color: var(--accent-green); font-size: 0.95rem;">构建输出</h3>
-        <p>单文件 bundle (dist/cli.js, ~25MB)。<code style="color: var(--accent-gold);">bun build</code> 直接打包。</p>
+        <p>代码分割构建 (dist/cli.js + ~450 chunks)。<code style="color: var(--accent-gold);">build.ts</code> 执行 Bun.build()。</p>
       </div>
       <div class="chapter-card">
         <h3 style="color: var(--accent-gold); font-size: 0.95rem;">Monorepo</h3>
@@ -70,11 +70,15 @@
 <span class="comment"># 安装依赖</span>
 bun install
 
-<span class="comment"># 开发模式 (直接执行)</span>
-bun run dev    <span class="comment"># 等价于: bun run src/entrypoints/cli.tsx</span>
+<span class="comment"># 开发模式 (通过 -d flags 注入 MACRO defines)</span>
+bun run dev    <span class="comment"># 默认启用 BUDDY, TRANSCRIPT_CLASSIFIER, BRIDGE_MODE 等 6 个 feature</span>
 
-<span class="comment"># 构建 (输出 dist/cli.js, ~25MB)</span>
-bun build src/entrypoints/cli.tsx --outdir dist --target bun
+<span class="comment"># 构建 (代码分割, 输出 dist/cli.js + ~450 chunk files)</span>
+bun run build  <span class="comment"># build.ts 执行 Bun.build() with splitting: true</span>
+
+<span class="comment"># 测试 & Lint</span>
+bun test                  <span class="comment"># 运行全部 418 个测试文件</span>
+bun run lint              <span class="comment"># Biome 代码检查</span>
 
 <span class="comment"># Pipe 模式</span>
 echo "say hello" | bun run src/entrypoints/cli.tsx -p
@@ -91,15 +95,15 @@ echo "say hello" | bun run src/entrypoints/cli.tsx -p
       <div class="flow-step">
         <div class="flow-num">1</div>
         <div class="flow-content">
-          <h4>cli.tsx — 运行时 Polyfills</h4>
-          <p>注入 <code>feature()</code> 函数（始终返回 false，禁用所有内部功能标志），设置 <code>globalThis.MACRO</code>（VERSION, BUILD_TIME 等构建时宏），定义 <code>BUILD_TARGET</code>、<code>BUILD_ENV</code>、<code>INTERFACE_TYPE</code> 全局变量。</p>
+          <h4>cli.tsx — 入口 + 12+ Fast-Paths</h4>
+          <p><code>main()</code> 函数按优先级处理快速路径：<code>--version</code>（零模块加载）、<code>--claude-in-chrome-mcp</code>、<code>--daemon-worker</code>（DAEMON flag）、<code>remote-control/rc/bridge</code>（BRIDGE_MODE flag）、<code>ps/logs/attach/kill</code>（BG_SESSIONS flag）等。只有默认路径才加载完整 CLI。</p>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">2</div>
         <div class="flow-content">
-          <h4>main.tsx — CLI 命令定义</h4>
-          <p>使用 Commander.js 解析命令行参数。初始化认证、分析服务、策略检查。根据参数决定进入 REPL 模式还是 Pipe 模式。</p>
+          <h4>main.tsx — CLI 命令定义 (~4680 行)</h4>
+          <p>Commander.js 注册 51+ 子命令（mcp, server, ssh, open, auth, plugin, agents, auto-mode, doctor, update 等）。主 action handler ~2867 行内联代码。</p>
         </div>
       </div>
       <div class="flow-step">
@@ -183,26 +187,25 @@ echo "say hello" | bun run src/entrypoints/cli.tsx -p
       <strong>React Compiler</strong> — 组件代码中可以看到 <code>const $ = _c(N)</code> 这样的模式，这是 React Compiler 自动优化后的产物。每个组件都经过编译器的 memoization 处理。
     </div>
 
-    <h2 id="feature-flags">Feature Flag 系统</h2>
-    <p>所有 <code>feature('FLAG_NAME')</code> 调用来自 <code>bun:bundle</code>（构建时 API）。在反编译版本中，<code>feature()</code> 被 polyfill 为始终返回 <code>false</code>。</p>
-
-    <p>这意味着所有 Anthropic 内部功能（COORDINATOR_MODE, KAIROS, PROACTIVE 等）都被禁用。feature flag 后面的代码在此版本中全部是死代码。</p>
+    <h2 id="feature-flags">Feature Flag 系统 (88+)</h2>
+    <p>通过 <code>import { feature } from 'bun:bundle'</code> 实现编译时功能门控。在 Dev 模式下通过环境变量 <code>FEATURE_&lt;FLAG&gt;=1</code> 启用特定功能。</p>
 
     <div class="code-block">
-<span class="comment">// cli.tsx 中的 polyfill</span>
-<span class="keyword">globalThis</span>.feature = () => <span class="keyword">false</span>;
+<span class="comment">// 统一从 bun:bundle 导入</span>
+<span class="keyword">import</span> { feature } <span class="keyword">from</span> <span class="string">'bun:bundle'</span>;
 
-<span class="comment">// 使用示例 (这些分支永远不会执行)</span>
-<span class="keyword">if</span> (<span class="fn">feature</span>(<span class="string">'COORDINATOR_MODE'</span>)) {
-  <span class="comment">// 协调者模式 — 死代码</span>
+<span class="keyword">if</span> (<span class="fn">feature</span>(<span class="string">'BRIDGE_MODE'</span>)) {
+  <span class="comment">// 仅在 FEATURE_BRIDGE_MODE=1 时启用</span>
 }
-<span class="keyword">if</span> (<span class="fn">feature</span>(<span class="string">'KAIROS'</span>)) {
-  <span class="comment">// 后台主动模式 — 死代码</span>
-}
+
+<span class="comment">// Dev 默认启用: BUDDY, TRANSCRIPT_CLASSIFIER, BRIDGE_MODE,</span>
+<span class="comment">//               AGENT_TRIGGERS_REMOTE, CHICAGO_MCP, VOICE_MODE</span>
+<span class="comment">// Build 默认启用: AGENT_TRIGGERS_REMOTE, CHICAGO_MCP, VOICE_MODE</span>
+<span class="comment">// 手动启用: FEATURE_PROACTIVE=1 bun run dev</span>
     </div>
 
-    <div class="info-box warning">
-      <strong>注意：</strong> 已知的 Feature Flag 包括：COORDINATOR_MODE, KAIROS, PROACTIVE, AGENT_TRIGGERS, WEB_BROWSER_TOOL, MONITOR_TOOL, ENABLE_AGENT_SWARMS, UDS_INBOX, WORKFLOW_SCRIPTS, TERMINAL_PANEL 等。这些代表了 Claude Code 正在开发中的功能方向。
+    <div class="info-box">
+      <strong>88+ Feature Flags</strong> 覆盖 6 大类：Agent/自动化 (15)、基��设施 (10)、安全/分类 (6)、工具/能力 (10)、UI/体验 (8)、实验性 (10+)。详见 <a href="internals.html#feature-flags">Ch12 内部机制</a>。MACRO 定义集中在 <code>scripts/defines.ts</code>，当前版本 <strong>v2.1.888</strong>。
     </div>
 
   </main>

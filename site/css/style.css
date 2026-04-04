@@ -620,6 +620,8 @@ a:hover { color: var(--accent-warm); }
 .animate-in:nth-child(10) { animation-delay: 0.5s; }
 .animate-in:nth-child(11) { animation-delay: 0.55s; }
 .animate-in:nth-child(12) { animation-delay: 0.6s; }
+.animate-in:nth-child(13) { animation-delay: 0.65s; }
+.animate-in:nth-child(14) { animation-delay: 0.7s; }
 
 /* ---- Responsive ---- */
 @media (max-width: 768px) {

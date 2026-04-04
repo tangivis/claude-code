@@ -34,16 +34,16 @@
 <section class="hero">
   <div class="hero-badge">&#9672; 逆向工程 · 源码级分析</div>
   <h1>Understanding Claude Code<br>从源码看 AI 编程智能体</h1>
-  <p>深入 Anthropic 官方 CLI 工具的内部实现 — 从架构设计到 Agent Loop，从 40+ 工具系统到多层权限模型，完整拆解一个工业级 AI 编程智能体是如何构建的。</p>
+  <p>深入 Anthropic 官方 CLI 工具的内部实现 — 从架构设计到 Agent Loop，从 54 个工具系统到多层权限模型，完整拆解一个工业级 AI 编程智能体是如何构建的。</p>
 
   <div class="stats-bar">
     <div class="stat-item">
-      <div class="stat-value">40+</div>
+      <div class="stat-value">54</div>
       <div class="stat-label">内置工具</div>
     </div>
     <div class="stat-item">
-      <div class="stat-value">TypeScript</div>
-      <div class="stat-label">实现语言</div>
+      <div class="stat-value">88+</div>
+      <div class="stat-label">Feature Flags</div>
     </div>
     <div class="stat-item">
       <div class="stat-value">Bun</div>
@@ -54,8 +54,8 @@
       <div class="stat-label">权限模式</div>
     </div>
     <div class="stat-item">
-      <div class="stat-value">MCP</div>
-      <div class="stat-label">协议支持</div>
+      <div class="stat-value">v1.1.0</div>
+      <div class="stat-label">版本</div>
     </div>
   </div>
 </section>
@@ -103,7 +103,7 @@
       <div class="arch-box">
         <div class="box-label">工具执行</div>
         <div class="box-name">Tools</div>
-        <div class="box-file">40+ 工具</div>
+        <div class="box-file">54 个工具</div>
       </div>
     </div>
   </div>
@@ -134,7 +134,7 @@
     <a href="pages/tools.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 03</div>
       <h3><span class="chapter-icon">&#128295;</span> 工具系统</h3>
-      <p>40+ 内置工具全览：文件操作、Shell 执行、搜索、Web 访问、任务管理，以及工具注册与条件加载机制。</p>
+      <p>54 个内置工具全览：文件操作、Shell 执行、搜索、Web 访问、任务管理，以及工具注册与条件加载机制。</p>
     </a>
 
     <a href="pages/permissions.html" class="chapter-card animate-in">
@@ -182,13 +182,19 @@
     <a href="pages/comparison.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 11</div>
       <h3><span class="chapter-icon">&#9878;</span> 对比：Codex CLI</h3>
-      <p>Rust vs TypeScript、OS 内核沙箱 vs LLM 分类器、81 crate vs 40+ 工具 — 两种截然不同的安全哲学。</p>
+      <p>Rust vs TypeScript、OS 内核沙箱 vs LLM 分类器、81 crate vs 54 工具 — 两种截然不同的安全哲学。</p>
     </a>
 
     <a href="pages/internals.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 12</div>
       <h3><span class="chapter-icon">&#128270;</span> 内部机制</h3>
-      <p>Feature Flag 系统、Analytics/Telemetry、Session 管理、File History 追踪、React Compiler 输出。</p>
+      <p>88+ Feature Flags、bun test (418 测试文件)、Biome 代码检查、Computer Use 完整实现、Session 管理。</p>
+    </a>
+
+    <a href="pages/bridge.html" class="chapter-card animate-in">
+      <div class="chapter-num">Chapter 13</div>
+      <h3><span class="chapter-icon">&#128225;</span> Bridge / 远程控制</h3>
+      <p>src/bridge/ 34 文件、多会话管理、JWT 认证、Worktree 隔离、REPL 协议、Background Sessions。</p>
     </a>
 
   </div>
@@ -204,7 +210,7 @@
   <div class="chapters-grid">
     <div class="chapter-card">
       <h3 style="color: var(--accent-blue);">TypeScript + Bun</h3>
-      <p>选择 TypeScript 而非 Rust/Go，借助 Bun 的高性能运行时，实现快速迭代。单文件 Bundle 约 25MB，启动即用。</p>
+      <p>选择 TypeScript 而非 Rust/Go，借助 Bun 的高性能运行时，实现快速迭代。代码分割构建，输出 ~450 chunk 文件。</p>
     </div>
     <div class="chapter-card">
       <h3 style="color: var(--accent-green);">LLM 驱动的安全</h3>
@@ -245,7 +251,7 @@
 ├── <span class="file">QueryEngine.ts</span>        <span class="desc">── 高层查询引擎 (会话管理/Compaction)</span>
 ├── <span class="file">Tool.ts</span>               <span class="desc">── Tool 接口定义</span>
 ├── <span class="file">tools.ts</span>              <span class="desc">── 工具注册表 & 条件加载</span>
-├── <span class="dir">tools/</span>                <span class="desc">── 40+ 工具实现</span>
+├── <span class="dir">tools/</span>                <span class="desc">── 54 个工具实现</span>
 │   ├── <span class="dir">AgentTool/</span>        <span class="desc">── 子 Agent 生成 & 管理</span>
 │   ├── <span class="dir">BashTool/</span>         <span class="desc">── Shell 命令执行</span>
 │   ├── <span class="dir">FileReadTool/</span>     <span class="desc">── 文件读取 (支持 PDF/图片)</span>
@@ -258,8 +264,12 @@
 │   ├── <span class="dir">SkillTool/</span>        <span class="desc">── 技能/命令执行</span>
 │   └── <span class="file">...</span>              <span class="desc">── 更多工具</span>
 ├── <span class="dir">screens/</span>              <span class="desc">── UI 屏幕 (REPL.tsx)</span>
-├── <span class="dir">components/</span>           <span class="desc">── React/Ink 组件</span>
+├── <span class="dir">bridge/</span>               <span class="desc">── Bridge/远程控制 (~34 文件)</span>
+├── <span class="dir">daemon/</span>               <span class="desc">── Daemon 模式 (stub)</span>
+├── <span class="dir">buddy/</span>                <span class="desc">── Buddy 伴侣 AI 精灵</span>
+├── <span class="dir">components/</span>           <span class="desc">── 170+ React/Ink 组件</span>
 │   ├── <span class="file">Messages.tsx</span>      <span class="desc">── 消息渲染</span>
+│   ├── <span class="dir">design-system/</span>    <span class="desc">── 16 个主题 UI 原语</span>
 │   ├── <span class="dir">PromptInput/</span>      <span class="desc">── 用户输入</span>
 │   └── <span class="dir">permissions/</span>      <span class="desc">── 权限对话框</span>
 ├── <span class="dir">services/</span>

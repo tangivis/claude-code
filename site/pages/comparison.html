@@ -40,7 +40,7 @@
   <main class="page-main">
     <div class="section-tag">Chapter 11</div>
     <h1>对比：Claude Code vs Codex CLI</h1>
-    <p>同样是让 AI 帮你写代码，一个用 Rust 写了 81 个 crate，靠操作系统内核来保证安全；另一个用 TypeScript 做了 40 多个工具，靠额外调一次 LLM 来判断你的命令危不危险。</p>
+    <p>同样是让 AI 帮你写代码，一个用 Rust 写了 81 个 crate，靠操作系统内核来保证安全；另一个用 TypeScript 做了 54 个工具，靠额外调一次 LLM 来判断你的命令危不危险。</p>
 
     <h2 id="overview">总览对比</h2>
 
@@ -50,7 +50,7 @@
           <div class="box-label" style="color: var(--accent-primary);">Claude Code</div>
           <div class="box-name">Anthropic</div>
           <div class="box-file">TypeScript · Bun · LLM Classifier</div>
-          <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">40+ Tools · 6 Permission Modes · MCP</div>
+          <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">54 Tools · 6 Permission Modes · MCP</div>
         </div>
         <div style="display: flex; align-items: center; font-size: 2rem; color: var(--text-muted);">vs</div>
         <div class="arch-box" style="border-color: var(--accent-gold); min-width: 250px;">
@@ -86,7 +86,7 @@
           </tr>
           <tr>
             <td><strong>代码规模</strong></td>
-            <td>~25MB bundle, 大型 monorepo</td>
+            <td>代码分割 ~450 chunks, 大型 monorepo</td>
             <td>81 crates, 精简编译</td>
           </tr>
           <tr>
@@ -101,7 +101,7 @@
           </tr>
           <tr>
             <td><strong>API 模型</strong></td>
-            <td>Claude (Anthropic/Bedrock/Vertex/Azure)</td>
+            <td>Claude (Anthropic/Bedrock/Vertex/Azure) + OpenAI 兼容层</td>
             <td>OpenAI GPT-4o / o3 系列</td>
           </tr>
           <tr>
@@ -198,7 +198,7 @@
           </tr>
           <tr>
             <td><strong>总工具数</strong></td>
-            <td><strong>40+</strong> (+ MCP 动态工具)</td>
+            <td><strong>54</strong> (+ MCP 动态工具)</td>
             <td><strong>~3</strong> (shell, file_read, apply_patch)</td>
           </tr>
         </tbody>
@@ -235,7 +235,7 @@
     <h2 id="philosophy">设计哲学总结</h2>
 
     <div class="info-box">
-      <strong>Claude Code</strong> 选择了"<strong>丰富的工具 + AI 驱动的安全</strong>"路线 — 40+ 工具覆盖几乎所有开发场景，用 LLM 分类器实现语义级的安全判断，用 MCP 协议实现无限扩展。代价是安全性依赖模型判断（概率性），且系统复杂度高。
+      <strong>Claude Code</strong> 选择了"<strong>丰富的工具 + AI 驱动的安全</strong>"路线 — 54 个工具覆盖几乎所有开发场景，用 LLM 分类器实现语义级的安全判断，用 MCP 协议实现无限扩展。代价是安全性依赖模型判断（概率性），且系统复杂度高。
     </div>
 
     <div class="info-box warning">

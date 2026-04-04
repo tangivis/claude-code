@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bridge / 远程控制 - Claude Code 源码分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="../" class="nav-logo"><span class="logo-icon">&gt;_</span> Claude Code 源码分析</a>
+    <ul class="nav-links">
+      <li><a href="../">首页</a></li>
+      <li><a href="architecture.html">架构</a></li>
+      <li><a href="agent-loop.html">Agent Loop</a></li>
+      <li><a href="tools.html">工具系统</a></li>
+      <li><a href="permissions.html">权限系统</a></li>
+      <li><a href="agents.html">多智能体</a></li>
+      <li><a href="context.html">上下文管理</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-with-sidebar">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">本章内容</div>
+      <a href="#overview" class="sidebar-link active">概览</a>
+      <a href="#architecture" class="sidebar-link">架构</a>
+      <a href="#auth" class="sidebar-link">认证</a>
+      <a href="#sessions" class="sidebar-link">会话管理</a>
+      <a href="#appstate" class="sidebar-link">AppState 集成</a>
+      <a href="#related" class="sidebar-link">相关系统</a>
+    </div>
+  </aside>
+
+  <main class="page-main">
+    <div class="section-tag">Chapter 13</div>
+    <h1>Bridge / 远程控制</h1>
+    <p>Bridge 模式让 Claude Code 可以作为远程会话的工作节点运行 — 支持多会话管理、JWT 认证、Worktree 隔离。由 <code>BRIDGE_MODE</code> feature flag 控制。</p>
+
+    <h2 id="overview">概览</h2>
+    <div class="stats-bar" style="justify-content: flex-start; gap: 2rem; margin: 1.5rem 0;">
+      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">34</div><div class="stat-label">源文件</div></div>
+      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">2999</div><div class="stat-label">bridgeMain.ts 行</div></div>
+      <div class="stat-item"><div class="stat-value" style="font-size: 1.5rem;">32</div><div class="stat-label">默认并发会话</div></div>
+    </div>
+
+    <p>Bridge 通过 CLI 快速路径进入（<code>claude remote-control</code> / <code>claude rc</code> / <code>claude bridge</code>），在完整 CLI 加载之前就被拦截处理。</p>
+
+    <h2 id="architecture">核心架构</h2>
+
+    <div class="arch-diagram">
+      <div style="display: flex; flex-direction: column; gap: 1rem; align-items: center;">
+        <div class="arch-box" style="width: 80%; max-width: 600px; border-color: var(--accent-primary);">
+          <div class="box-label">入口</div>
+          <div class="box-name">bridgeMain.ts (2999 行)</div>
+          <div class="box-file">多会话 Spawn 管理 + 状态更新循环</div>
+        </div>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+          <div style="text-align: center;">
+            <div class="arch-arrow" style="transform: rotate(90deg); margin: 0.5rem 0;">&#8595;</div>
+            <div class="arch-box" style="border-color: var(--accent-blue);">
+              <div class="box-label">协议</div>
+              <div class="box-name">replBridge.ts</div>
+              <div class="box-file">2406 行, REPL 协议</div>
+            </div>
+          </div>
+          <div style="text-align: center;">
+            <div class="arch-arrow" style="transform: rotate(90deg); margin: 0.5rem 0;">&#8595;</div>
+            <div class="arch-box" style="border-color: var(--accent-green);">
+              <div class="box-label">无环境模式</div>
+              <div class="box-name">remoteBridgeCore.ts</div>
+              <div class="box-file">直接 OAuth→JWT</div>
+            </div>
+          </div>
+          <div style="text-align: center;">
+            <div class="arch-arrow" style="transform: rotate(90deg); margin: 0.5rem 0;">&#8595;</div>
+            <div class="arch-box" style="border-color: var(--accent-gold);">
+              <div class="box-label">API 层</div>
+              <div class="box-name">bridgeApi.ts</div>
+              <div class="box-file">HTTP + 重试 + 401</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3>关键文件</h3>
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead><tr><th>文件</th><th>行数</th><th>��责</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tool-name">bridgeMain.ts</span></td><td>2999</td><td>多会话 Spawn 管理、状态更新循环、Worktree 支持</td></tr>
+          <tr><td><span class="tool-name">replBridge.ts</span></td><td>2406</td><td>REPL↔Bridge 协议、消息序列化、容量唤醒信号</td></tr>
+          <tr><td><span class="tool-name">remoteBridgeCore.ts</span></td><td>~500</td><td>无环境 Bridge — 直接 OAuth→worker_jwt 交换</td></tr>
+          <tr><td><span class="tool-name">bridgeApi.ts</span></td><td>~300</td><td>Environments API HTTP 客户端 + 重试</td></tr>
+          <tr><td><span class="tool-name">bridgeMessaging.ts</span></td><td>~200</td><td>消息入站、控制请求、结果序列化</td></tr>
+          <tr><td><span class="tool-name">initReplBridge.ts</span></td><td>~200</td><td>REPL Bridge 启动、状态读取、Gate 检查</td></tr>
+          <tr><td><span class="tool-name">types.ts</span></td><td>~150</td><td>SpawnMode, BridgeConfig, WorkData, SessionDoneStatus</td></tr>
+          <tr><td><span class="tool-name">jwtUtils.ts</span></td><td>~100</td><td>Token 刷新调度、主动续期</td></tr>
+          <tr><td><span class="tool-name">trustedDevice.ts</span></td><td>~80</td><td>可信设备 Token 管理</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="auth">认证机制</h2>
+    <p>Bridge 使用 JWT 进行会话认证，支持自动刷新：</p>
+
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-num">1</div>
+        <div class="flow-content">
+          <h4>OAuth 认证</h4>
+          <p>用户通过 OAuth 登录获取 access token。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">2</div>
+        <div class="flow-content">
+          <h4>JWT 交换</h4>
+          <p>remoteBridgeCore 通过 <code>/v1/code/sessions/{id}/bridge</code> 将 OAuth token 交换为 worker JWT。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">3</div>
+        <div class="flow-content">
+          <h4>自动刷新</h4>
+          <p>jwtUtils 调度器在 JWT 过期前主动刷新（proactive renewal），支持 401/403 时重新获取。</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">4</div>
+        <div class="flow-content">
+          <h4>可信设备</h4>
+          <p>trustedDevice.ts 管理可信设备 token，用于提升认证级别。</p>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="sessions">多会话管理</h2>
+    <p>Bridge 支持同时管理多个远程会话：</p>
+
+    <ul>
+      <li><strong>默认 32 并发</strong> — 可配置的最大并发会话数</li>
+      <li><strong>会话超时</strong> — 默认 24 小时，watchdog 定时器监控</li>
+      <li><strong>状态更新</strong> — 1 秒间隔的状态更新循环，实时 UI 显示</li>
+      <li><strong>容量唤醒</strong> — 会话完成时发送 capacity wake 信号，立即调度新会话</li>
+      <li><strong>退避重试</strong> — Spawn 失败时指数退避</li>
+    </ul>
+
+    <h3>Spawn 模式</h3>
+    <div class="chapters-grid" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-blue); font-size: 0.95rem;">single-session</h3>
+        <p>单会话模式，一次运行一个远程会话。最简单的模式。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-green); font-size: 0.95rem;">worktree</h3>
+        <p>每个会话在独立的 Git Worktree 中运行。支持并行修改不同分支。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-gold); font-size: 0.95rem;">same-dir</h3>
+        <p>所有会话共享同一工作目录。适合只读或互不冲突的任务。</p>
+      </div>
+    </div>
+
+    <h2 id="appstate">AppState 集成</h2>
+    <p>Bridge 在 AppState 中维护 10+ 个状态字段：</p>
+
+    <div class="code-block">
+<span class="comment">// AppState 中的 Bridge 相关字段</span>
+{
+  replBridgeEnabled: <span class="keyword">boolean</span>,        <span class="comment">// Bridge 是否启用</span>
+  replBridgeConnected: <span class="keyword">boolean</span>,      <span class="comment">// 连接状态</span>
+  replBridgeSessionActive: <span class="keyword">boolean</span>,  <span class="comment">// 会话是否活跃</span>
+  replBridgeConnectUrl: <span class="keyword">string</span>,      <span class="comment">// 连接 URL</span>
+  replBridgeSessionUrl: <span class="keyword">string</span>,      <span class="comment">// 会话 URL</span>
+  replBridgeError: <span class="keyword">string</span>,           <span class="comment">// 错误信息</span>
+  replBridgeReconnecting: <span class="keyword">boolean</span>,   <span class="comment">// 重连中</span>
+  <span class="comment">// ... 更多字段</span>
+}
+    </div>
+
+    <h2 id="related">相关系统</h2>
+
+    <div class="chapters-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="chapter-card">
+        <h3 style="color: var(--text-muted); font-size: 0.95rem;">Daemon 模式 (Stub)</h3>
+        <p>src/daemon/ — 长驻 supervisor 进程。目前仅 2 个 stub 文件 (Promise.resolve())。由 DAEMON flag 控制。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-primary); font-size: 0.95rem;">Background Sessions</h3>
+        <p>BG_SESSIONS flag 启用后台会话管理命令：<code>claude ps</code>、<code>claude logs</code>、<code>claude attach</code>、<code>claude kill</code>。</p>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>
