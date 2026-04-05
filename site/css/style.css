@@ -3,30 +3,30 @@
    ============================================ */
 
 :root {
-  --bg-primary: #0a0a0f;
-  --bg-secondary: #12121a;
-  --bg-card: #16161f;
-  --bg-card-hover: #1c1c28;
-  --bg-code: #1a1a25;
-  --border-default: #2a2a3a;
-  --border-hover: #c084fc;
-  --text-primary: #e8e8ed;
-  --text-secondary: #9898a8;
-  --text-muted: #6b6b7b;
-  --accent-primary: #c084fc;    /* purple */
-  --accent-secondary: #818cf8;  /* indigo */
-  --accent-warm: #f0abfc;       /* pink */
-  --accent-gold: #fbbf24;       /* gold */
-  --accent-green: #34d399;      /* green */
-  --accent-blue: #60a5fa;       /* blue */
-  --accent-red: #f87171;        /* red */
-  --accent-orange: #fb923c;     /* orange */
+  --bg-primary: #0c0c0c;
+  --bg-secondary: #141414;
+  --bg-card: #181818;
+  --bg-card-hover: #1e1e1e;
+  --bg-code: #161616;
+  --border-default: #282828;
+  --border-hover: #525252;
+  --text-primary: #e0e0e0;
+  --text-secondary: #8a8a8a;
+  --text-muted: #5a5a5a;
+  --accent-primary: #7eb8da;    /* muted steel blue */
+  --accent-secondary: #8a9bb5;  /* slate */
+  --accent-warm: #c9a87c;       /* warm sand */
+  --accent-gold: #c9a84c;       /* muted gold */
+  --accent-green: #6bab90;      /* sage */
+  --accent-blue: #7eb8da;       /* steel */
+  --accent-red: #c47070;        /* muted red */
+  --accent-orange: #c49a6b;     /* muted amber */
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow: 0 4px 24px rgba(0,0,0,0.4);
-  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.3);
+  --transition: 0.2s ease;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -83,12 +83,14 @@ a:hover { color: var(--accent-warm); }
 .nav-logo .logo-icon {
   width: 28px;
   height: 28px;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  border-radius: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--accent-primary);
 }
 .nav-links {
   display: flex;
@@ -133,37 +135,35 @@ a:hover { color: var(--accent-warm); }
 .hero::before {
   content: '';
   position: absolute;
-  top: -200px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 800px;
-  height: 600px;
-  background: radial-gradient(ellipse, rgba(192,132,252,0.08) 0%, transparent 70%);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: none;
   pointer-events: none;
 }
 .hero-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.4rem 1rem;
-  background: rgba(192,132,252,0.1);
-  border: 1px solid rgba(192,132,252,0.2);
-  border-radius: 999px;
-  font-size: 0.8rem;
-  color: var(--accent-primary);
+  padding: 0.35rem 0.9rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
   font-weight: 500;
+  font-family: var(--font-mono);
   margin-bottom: 1.5rem;
+  letter-spacing: 0.05em;
 }
 .hero h1 {
   font-family: var(--font-mono);
-  font-size: clamp(2rem, 5vw, 3.5rem);
-  font-weight: 800;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
   line-height: 1.2;
   margin-bottom: 1rem;
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 50%, var(--accent-secondary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
 }
 .hero p {
   font-size: 1.15rem;
@@ -249,8 +249,6 @@ a:hover { color: var(--accent-warm); }
 .chapter-card:hover {
   border-color: var(--border-hover);
   background: var(--bg-card-hover);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow), 0 0 30px rgba(192,132,252,0.05);
 }
 .chapter-num {
   font-family: var(--font-mono);
@@ -308,7 +306,7 @@ a:hover { color: var(--accent-warm); }
 }
 .arch-box:hover {
   border-color: var(--accent-primary);
-  background: rgba(192,132,252,0.05);
+  background: rgba(126,184,218,0.05);
 }
 .arch-box .box-label {
   color: var(--text-muted);
@@ -361,7 +359,7 @@ a:hover { color: var(--accent-warm); }
   vertical-align: top;
 }
 .tool-table tr:hover td {
-  background: rgba(192,132,252,0.03);
+  background: rgba(126,184,218,0.03);
 }
 .tool-name {
   font-family: var(--font-mono);
@@ -373,21 +371,21 @@ a:hover { color: var(--accent-warm); }
 .tool-category {
   display: inline-block;
   padding: 0.15rem 0.5rem;
-  background: rgba(192,132,252,0.1);
+  background: rgba(126,184,218,0.1);
   border-radius: 4px;
   font-size: 0.7rem;
   color: var(--accent-primary);
   font-family: var(--font-mono);
   white-space: nowrap;
 }
-.tool-category.cat-file { background: rgba(96,165,250,0.1); color: var(--accent-blue); }
-.tool-category.cat-search { background: rgba(52,211,153,0.1); color: var(--accent-green); }
-.tool-category.cat-shell { background: rgba(248,113,113,0.1); color: var(--accent-red); }
-.tool-category.cat-web { background: rgba(251,191,36,0.1); color: var(--accent-gold); }
-.tool-category.cat-agent { background: rgba(192,132,252,0.1); color: var(--accent-primary); }
-.tool-category.cat-task { background: rgba(129,140,248,0.1); color: var(--accent-secondary); }
-.tool-category.cat-mcp { background: rgba(240,171,252,0.1); color: var(--accent-warm); }
-.tool-category.cat-config { background: rgba(251,146,60,0.1); color: var(--accent-orange); }
+.tool-category.cat-file { background: rgba(126,184,218,0.1); color: var(--accent-blue); }
+.tool-category.cat-search { background: rgba(107,171,144,0.1); color: var(--accent-green); }
+.tool-category.cat-shell { background: rgba(196,112,112,0.1); color: var(--accent-red); }
+.tool-category.cat-web { background: rgba(201,168,76,0.1); color: var(--accent-gold); }
+.tool-category.cat-agent { background: rgba(126,184,218,0.1); color: var(--accent-primary); }
+.tool-category.cat-task { background: rgba(138,155,181,0.1); color: var(--accent-secondary); }
+.tool-category.cat-mcp { background: rgba(201,168,124,0.1); color: var(--accent-warm); }
+.tool-category.cat-config { background: rgba(196,154,107,0.1); color: var(--accent-orange); }
 
 /* ---- Content Page ---- */
 .page-content {
@@ -457,7 +455,7 @@ a:hover { color: var(--accent-warm); }
 
 /* Info box */
 .info-box {
-  background: rgba(192,132,252,0.05);
+  background: rgba(126,184,218,0.05);
   border-left: 3px solid var(--accent-primary);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   padding: 1rem 1.25rem;
@@ -535,7 +533,7 @@ a:hover { color: var(--accent-warm); }
   font-weight: 600;
 }
 .perm-default { background: rgba(96,165,250,0.15); color: var(--accent-blue); }
-.perm-plan { background: rgba(192,132,252,0.15); color: var(--accent-primary); }
+.perm-plan { background: rgba(126,184,218,0.12); color: var(--accent-primary); }
 .perm-accept { background: rgba(52,211,153,0.15); color: var(--accent-green); }
 .perm-bypass { background: rgba(248,113,113,0.15); color: var(--accent-red); }
 .perm-auto { background: rgba(251,191,36,0.15); color: var(--accent-gold); }
@@ -579,11 +577,11 @@ a:hover { color: var(--accent-warm); }
 }
 .sidebar-link:hover {
   color: var(--text-primary);
-  background: rgba(192,132,252,0.05);
+  background: rgba(126,184,218,0.05);
 }
 .sidebar-link.active {
   color: var(--accent-primary);
-  background: rgba(192,132,252,0.1);
+  background: rgba(126,184,218,0.1);
 }
 .page-main {
   flex: 1;
@@ -769,7 +767,7 @@ a:hover { color: var(--accent-warm); }
   cursor: default;
 }
 .tree-item:hover {
-  background: rgba(192,132,252,0.05);
+  background: rgba(126,184,218,0.05);
 }
 .tree-icon {
   font-size: 0.9rem;
@@ -801,7 +799,7 @@ a:hover { color: var(--accent-warm); }
   flex-shrink: 0;
 }
 .tree-badge.hot { background: rgba(248,113,113,0.15); color: var(--accent-red); }
-.tree-badge.core { background: rgba(192,132,252,0.15); color: var(--accent-primary); }
+.tree-badge.core { background: rgba(126,184,218,0.12); color: var(--accent-primary); }
 .tree-badge.new { background: rgba(52,211,153,0.15); color: var(--accent-green); }
 .tree-toggle {
   cursor: pointer;

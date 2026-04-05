@@ -26,13 +26,13 @@
       <li><a href="pages/agents.html">多智能体</a></li>
       <li><a href="pages/context.html">上下文管理</a></li>
     </ul>
-    <a href="https://github.com" class="nav-github" title="GitHub">&#9733;</a>
+    <a href="https://github.com/tangivis/claude-code" class="nav-github" title="GitHub">src</a>
   </div>
 </nav>
 
 <!-- Hero -->
 <section class="hero">
-  <div class="hero-badge">&#9672; 逆向工程 · 源码级分析</div>
+  <div class="hero-badge">REVERSE ENGINEERED / SOURCE-LEVEL ANALYSIS</div>
   <h1>Understanding Claude Code<br>从源码看 AI 编程智能体</h1>
   <p>深入 Anthropic 官方 CLI 工具的内部实现 — 从架构设计到 Agent Loop，从 54 个工具系统到多层权限模型，完整拆解一个工业级 AI 编程智能体是如何构建的。</p>
 
@@ -121,79 +121,79 @@
 
     <a href="pages/architecture.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 01</div>
-      <h3><span class="chapter-icon">&#9881;</span> 整体架构</h3>
+      <h3>整体架构</h3>
       <p>入口引导流程、模块组织、运行时 (Bun)、构建系统、UI 渲染层 (React + Ink)、状态管理 (Zustand)。</p>
     </a>
 
     <a href="pages/agent-loop.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 02</div>
-      <h3><span class="chapter-icon">&#8635;</span> Agent Loop</h3>
+      <h3>Agent Loop</h3>
       <p>核心 query() 循环、流式响应处理、工具调用编排、turn 管理、错误恢复与重试策略。</p>
     </a>
 
     <a href="pages/tools.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 03</div>
-      <h3><span class="chapter-icon">&#128295;</span> 工具系统</h3>
+      <h3>工具系统</h3>
       <p>54 个内置工具全览：文件操作、Shell 执行、搜索、Web 访问、任务管理，以及工具注册与条件加载机制。</p>
     </a>
 
     <a href="pages/permissions.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 04</div>
-      <h3><span class="chapter-icon">&#128274;</span> 权限与安全</h3>
+      <h3>权限与安全</h3>
       <p>6 种权限模式、多层规则来源 (flag → user → project → policy)、LLM 分类器自动审批、危险命令检测。</p>
     </a>
 
     <a href="pages/agents.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 05</div>
-      <h3><span class="chapter-icon">&#129302;</span> 多智能体</h3>
+      <h3>多智能体</h3>
       <p>子 Agent 类型 (Explore/Plan/General)、Agent 隔离 (Worktree/Remote)、Fork 机制、Team Swarm 多 Agent 协作。</p>
     </a>
 
     <a href="pages/context.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 06</div>
-      <h3><span class="chapter-icon">&#128218;</span> 上下文管理</h3>
+      <h3>上下文管理</h3>
       <p>System Prompt 构建、CLAUDE.md 加载、Memory 系统、Compaction 压缩策略、Token Budget 管理。</p>
     </a>
 
     <a href="pages/hooks.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 07</div>
-      <h3><span class="chapter-icon">&#128268;</span> Hook 系统</h3>
+      <h3>Hook 系统</h3>
       <p>15+ 生命周期事件、PreToolUse/PostToolUse 钩子、权限拦截、会话钩子、异步 Hook 注册与响应。</p>
     </a>
 
     <a href="pages/mcp.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 08</div>
-      <h3><span class="chapter-icon">&#128279;</span> MCP 协议</h3>
+      <h3>MCP 协议</h3>
       <p>Model Context Protocol 集成、MCP Server 生命周期管理、资源读取、工具代理、Prompt 模板。</p>
     </a>
 
     <a href="pages/api.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 09</div>
-      <h3><span class="chapter-icon">&#9729;</span> API 与模型</h3>
+      <h3>API 与模型</h3>
       <p>多 Provider 支持 (Anthropic/Bedrock/Vertex/Azure)、流式 API 调用、Thinking 模式、Fallback 策略。</p>
     </a>
 
     <a href="pages/ui.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 10</div>
-      <h3><span class="chapter-icon">&#128187;</span> 终端 UI</h3>
+      <h3>终端 UI</h3>
       <p>Ink 框架 (React in Terminal)、自定义 reconciler、虚拟列表渲染、消息组件、权限对话框。</p>
     </a>
 
     <a href="pages/comparison.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 11</div>
-      <h3><span class="chapter-icon">&#9878;</span> 对比：Codex CLI</h3>
+      <h3>对比：Codex CLI</h3>
       <p>Rust vs TypeScript、OS 内核沙箱 vs LLM 分类器、81 crate vs 54 工具 — 两种截然不同的安全哲学。</p>
     </a>
 
     <a href="pages/internals.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 12</div>
-      <h3><span class="chapter-icon">&#128270;</span> 内部机制</h3>
+      <h3>内部机制</h3>
       <p>88+ Feature Flags、bun test (418 测试文件)、Biome 代码检查、Computer Use 完整实现、Session 管理。</p>
     </a>
 
     <a href="pages/bridge.html" class="chapter-card animate-in">
       <div class="chapter-num">Chapter 13</div>
-      <h3><span class="chapter-icon">&#128225;</span> Bridge / 远程控制</h3>
+      <h3>Bridge / 远程控制</h3>
       <p>src/bridge/ 34 文件、多会话管理、JWT 认证、Worktree 隔离、REPL 协议、Background Sessions。</p>
     </a>
 
@@ -246,115 +246,115 @@
     <ul>
       <li>
         <div class="tree-item tree-toggle" aria-expanded="true">
-          <span class="tree-icon">&#128194;</span>
+          <span class="tree-icon">/</span>
           <span class="tree-name is-dir">src/</span>
           <span class="tree-badge core">核心源码</span>
         </div>
         <ul>
           <li>
             <div class="tree-item tree-toggle" aria-expanded="false">
-              <span class="tree-icon">&#128194;</span>
+              <span class="tree-icon">/</span>
               <span class="tree-name is-dir">entrypoints/</span>
               <span class="tree-desc">入口文件</span>
             </div>
             <ul>
-              <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">cli.tsx</span><span class="tree-desc">12+ fast-paths 快速路由</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">init.ts</span><span class="tree-desc">一次性初始化</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">cli.tsx</span><span class="tree-desc">12+ fast-paths 快速路由</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">init.ts</span><span class="tree-desc">一次性初始化</span></div></li>
             </ul>
           </li>
-          <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">main.tsx</span><span class="tree-desc">Commander.js CLI 定义</span><span class="tree-badge hot">4,680 行</span></div></li>
-          <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">query.ts</span><span class="tree-desc">核心 Agent Loop</span><span class="tree-badge hot">1,732 行</span></div></li>
-          <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">QueryEngine.ts</span><span class="tree-desc">查询引擎 (会话/Compaction)</span><span class="tree-badge core">1,320 行</span></div></li>
-          <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">tools.ts</span><span class="tree-desc">工具注册表 & 条件加载</span></div></li>
+          <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">main.tsx</span><span class="tree-desc">Commander.js CLI 定义</span><span class="tree-badge hot">4,680 行</span></div></li>
+          <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">query.ts</span><span class="tree-desc">核心 Agent Loop</span><span class="tree-badge hot">1,732 行</span></div></li>
+          <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">QueryEngine.ts</span><span class="tree-desc">查询引擎 (会话/Compaction)</span><span class="tree-badge core">1,320 行</span></div></li>
+          <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">tools.ts</span><span class="tree-desc">工具注册表 & 条件加载</span></div></li>
           <li>
             <div class="tree-item tree-toggle" aria-expanded="false">
-              <span class="tree-icon">&#128194;</span>
+              <span class="tree-icon">/</span>
               <span class="tree-name is-dir">tools/</span>
               <span class="tree-desc">54 个工具实现</span>
               <span class="tree-badge core">54 Tools</span>
             </div>
             <ul>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">AgentTool/</span><span class="tree-desc">子 Agent 生成 & 管理</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">BashTool/</span><span class="tree-desc">Shell 命令执行</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">FileReadTool/</span><span class="tree-desc">文件读取 (PDF/图片/Notebook)</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">FileEditTool/</span><span class="tree-desc">文件编辑 (字符串替换)</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">FileWriteTool/</span><span class="tree-desc">文件写入 (创建/覆盖)</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">GlobTool/</span><span class="tree-desc">文件模式匹配</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">GrepTool/</span><span class="tree-desc">内容搜索 (ripgrep)</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">WebFetchTool/</span><span class="tree-desc">URL 内容抓取</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">SkillTool/</span><span class="tree-desc">技能/命令执行</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">AgentTool/</span><span class="tree-desc">子 Agent 生成 & 管理</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">BashTool/</span><span class="tree-desc">Shell 命令执行</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">FileReadTool/</span><span class="tree-desc">文件读取 (PDF/图片/Notebook)</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">FileEditTool/</span><span class="tree-desc">文件编辑 (字符串替换)</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">FileWriteTool/</span><span class="tree-desc">文件写入 (创建/覆盖)</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">GlobTool/</span><span class="tree-desc">文件模式匹配</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">GrepTool/</span><span class="tree-desc">内容搜索 (ripgrep)</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">WebFetchTool/</span><span class="tree-desc">URL 内容抓取</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">SkillTool/</span><span class="tree-desc">技能/命令执行</span></div></li>
               <li><div class="tree-item" style="color: var(--text-muted); font-style: italic;"><span class="tree-icon">···</span><span class="tree-name is-file">+45 更多工具目录</span></div></li>
             </ul>
           </li>
-          <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">screens/</span><span class="tree-desc">UI 屏幕 (REPL.tsx 5,005 行)</span><span class="tree-badge hot">God Component</span></div></li>
-          <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">bridge/</span><span class="tree-desc">Bridge/远程控制</span><span class="tree-badge new">34 文件</span></div></li>
-          <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">daemon/</span><span class="tree-desc">Daemon 模式 (stub)</span></div></li>
-          <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">buddy/</span><span class="tree-desc">Buddy 伴侣 AI 精灵</span><span class="tree-badge new">8 文件</span></div></li>
+          <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">screens/</span><span class="tree-desc">UI 屏幕 (REPL.tsx 5,005 行)</span><span class="tree-badge hot">God Component</span></div></li>
+          <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">bridge/</span><span class="tree-desc">Bridge/远程控制</span><span class="tree-badge new">34 文件</span></div></li>
+          <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">daemon/</span><span class="tree-desc">Daemon 模式 (stub)</span></div></li>
+          <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">buddy/</span><span class="tree-desc">Buddy 伴侣 AI 精灵</span><span class="tree-badge new">8 文件</span></div></li>
           <li>
             <div class="tree-item tree-toggle" aria-expanded="false">
-              <span class="tree-icon">&#128194;</span>
+              <span class="tree-icon">/</span>
               <span class="tree-name is-dir">components/</span>
               <span class="tree-desc">React/Ink 组件</span>
               <span class="tree-badge core">170+ 组件</span>
             </div>
             <ul>
-              <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">Messages.tsx</span><span class="tree-desc">消息渲染</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">design-system/</span><span class="tree-desc">16 个主题 UI 原语</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">PromptInput/</span><span class="tree-desc">用户输入</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">permissions/</span><span class="tree-desc">权限对话框</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">tasks/</span><span class="tree-desc">任务面板</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">diff/</span><span class="tree-desc">Diff 渲染</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">Messages.tsx</span><span class="tree-desc">消息渲染</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">design-system/</span><span class="tree-desc">16 个主题 UI 原语</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">PromptInput/</span><span class="tree-desc">用户输入</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">permissions/</span><span class="tree-desc">权限对话框</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">tasks/</span><span class="tree-desc">任务面板</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">diff/</span><span class="tree-desc">Diff 渲染</span></div></li>
             </ul>
           </li>
           <li>
             <div class="tree-item tree-toggle" aria-expanded="false">
-              <span class="tree-icon">&#128194;</span>
+              <span class="tree-icon">/</span>
               <span class="tree-name is-dir">services/</span>
               <span class="tree-desc">服务层</span>
             </div>
             <ul>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">api/</span><span class="tree-desc">API 客户端 (claude.ts 3,415 行)</span><span class="tree-badge hot">多 Provider</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">compact/</span><span class="tree-desc">上下文压缩</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">tools/</span><span class="tree-desc">工具编排</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">mcp/</span><span class="tree-desc">MCP 客户端 (3,351 行)</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">api/</span><span class="tree-desc">API 客户端 (claude.ts 3,415 行)</span><span class="tree-badge hot">多 Provider</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">compact/</span><span class="tree-desc">上下文压缩</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">tools/</span><span class="tree-desc">工具编排</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">mcp/</span><span class="tree-desc">MCP 客户端 (3,351 行)</span></div></li>
             </ul>
           </li>
           <li>
             <div class="tree-item tree-toggle" aria-expanded="false">
-              <span class="tree-icon">&#128194;</span>
+              <span class="tree-icon">/</span>
               <span class="tree-name is-dir">state/</span>
               <span class="tree-desc">状态管理</span>
             </div>
             <ul>
-              <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">AppState.tsx</span><span class="tree-desc">中央状态类型 (199 行类型)</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">AppStateStore.ts</span><span class="tree-desc">默认状态 & store 工厂</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">selectors.ts</span><span class="tree-desc">状态选择器</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">store.ts</span><span class="tree-desc">Zustand 风格 createStore</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">AppState.tsx</span><span class="tree-desc">中央状态类型 (199 行类型)</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">AppStateStore.ts</span><span class="tree-desc">默认状态 & store 工厂</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">selectors.ts</span><span class="tree-desc">状态选择器</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">store.ts</span><span class="tree-desc">Zustand 风格 createStore</span></div></li>
             </ul>
           </li>
           <li>
             <div class="tree-item tree-toggle" aria-expanded="false">
-              <span class="tree-icon">&#128194;</span>
+              <span class="tree-icon">/</span>
               <span class="tree-name is-dir">utils/</span>
               <span class="tree-desc">工具库</span>
             </div>
             <ul>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">permissions/</span><span class="tree-desc">权限引擎</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">hooks.ts</span><span class="tree-desc">Hook 系统</span><span class="tree-badge hot">5,177 行</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">model/</span><span class="tree-desc">Provider 选择</span></div></li>
-              <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">auth.ts</span><span class="tree-desc">认证 (7 种方式)</span><span class="tree-badge hot">2,001 行</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">permissions/</span><span class="tree-desc">权限引擎</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">hooks.ts</span><span class="tree-desc">Hook 系统</span><span class="tree-badge hot">5,177 行</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">model/</span><span class="tree-desc">Provider 选择</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">auth.ts</span><span class="tree-desc">认证 (7 种方式)</span><span class="tree-badge hot">2,001 行</span></div></li>
             </ul>
           </li>
-          <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">context.ts</span><span class="tree-desc">System Prompt 构建</span></div></li>
-          <li><div class="tree-item"><span class="tree-icon">&#128194;</span><span class="tree-name is-dir">types/</span><span class="tree-desc">类型定义</span></div></li>
+          <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">context.ts</span><span class="tree-desc">System Prompt 构建</span></div></li>
+          <li><div class="tree-item"><span class="tree-icon">/</span><span class="tree-name is-dir">types/</span><span class="tree-desc">类型定义</span></div></li>
           <li>
             <div class="tree-item tree-toggle" aria-expanded="false">
-              <span class="tree-icon">&#128194;</span>
+              <span class="tree-icon">/</span>
               <span class="tree-name is-dir">tasks/</span>
               <span class="tree-desc">任务系统</span>
             </div>
             <ul>
-              <li><div class="tree-item"><span class="tree-icon">&#128196;</span><span class="tree-name is-file">LocalMainSessionTask.ts</span><span class="tree-desc">全库最大单文件</span><span class="tree-badge hot">15,373 行</span></div></li>
+              <li><div class="tree-item"><span class="tree-icon">_</span><span class="tree-name is-file">LocalMainSessionTask.ts</span><span class="tree-desc">全库最大单文件</span><span class="tree-badge hot">15,373 行</span></div></li>
             </ul>
           </li>
         </ul>
