@@ -86,7 +86,7 @@
     <h2 id="claudemd">CLAUDE.md 加载机制</h2>
     <p>CLAUDE.md 是项目级指令文件，<code>src/utils/claudemd.ts</code> 负责发现和加载：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// CLAUDE.md 搜索顺序 (从高优先级到低)</span>
 <span class="type">搜索路径</span>:
 1. <span class="string">当前目录/CLAUDE.md</span>         <span class="comment">── 项目级指令</span>
@@ -97,7 +97,7 @@
 <span class="comment">// 加载到 System Prompt 中</span>
 <span class="keyword">const</span> claudeMdContent = <span class="keyword">await</span> <span class="fn">loadClaudeMd</span>(projectRoot);
 systemPrompt += <span class="fn">formatClaudeMdSection</span>(claudeMdContent);
-    </div>
+    </pre>
 
     <div class="info-box">
       <strong>CLAUDE.md 的作用：</strong> 它是项目级别的"永久指令"，告诉 Claude Code 如何处理这个特定的代码库。比如构建命令、代码风格、架构约定等。每次对话都会自动加载。
@@ -126,7 +126,7 @@ systemPrompt += <span class="fn">formatClaudeMdSection</span>(claudeMdContent);
       </div>
     </div>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// Memory 文件结构</span>
 <span class="comment">// ~/.claude/projects/{project-hash}/memory/</span>
 <span class="string">---
@@ -141,7 +141,7 @@ type: user
 <span class="comment">// MEMORY.md — 索引文件 (始终加载到上下文)</span>
 - [用户角色](user_role.md) — 高级后端开发，Go/Rust 专长
 - [测试偏好](feedback_testing.md) — 集成测试优先，不要 mock DB
-    </div>
+    </pre>
 
     <h2 id="compaction">Compaction 压缩策略</h2>
     <p>随着对话增长，上下文会超出 token 限制。Claude Code 有多种压缩策略：</p>

@@ -58,7 +58,7 @@
     <h2 id="interface">Tool 接口定义</h2>
     <p>每个工具都实现 <code>Tool</code> 接口（src/Tool.ts）：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="keyword">interface</span> <span class="type">Tool</span> {
   name: <span class="keyword">string</span>                        <span class="comment">// 唯一标识 (如 "Bash", "Read")</span>
   searchHint: <span class="keyword">string</span>                  <span class="comment">// 工具搜索描述</span>
@@ -79,12 +79,12 @@
   <span class="comment">// 可选：React 渲染组件</span>
   <span class="fn">renderResult</span>?(result): <span class="type">JSX.Element</span>
 }
-    </div>
+    </pre>
 
     <h2 id="registry">工具注册 & 条件加载</h2>
     <p>工具在 <code>src/tools.ts</code> 中注册，部分工具根据 feature flag 或环境条件有选择地加载：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// src/tools.ts — 工具组装</span>
 <span class="keyword">function</span> <span class="fn">assembleToolPool</span>(): <span class="type">Tool</span>[] {
   <span class="keyword">const</span> tools = [
@@ -100,7 +100,7 @@
   ];
   <span class="keyword">return</span> tools;
 }
-    </div>
+    </pre>
 
     <h2 id="catalog">完整工具目录</h2>
 

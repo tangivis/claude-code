@@ -70,7 +70,7 @@
 
     <h2 id="components">核心组件树</h2>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// 组件层级结构 (170+ 组件, 596 文件)</span>
 <span class="type">App.tsx</span>                     <span class="comment">── 根 Provider (AppState, Stats, FpsMetrics)</span>
 ├── <span class="type">REPL.tsx</span>                <span class="comment">── 交互 REPL (5005行, 54 useState, 68 useEffect)</span>
@@ -89,7 +89,7 @@
 ├── <span class="type">wizard/</span>                 <span class="comment">── 向导流程</span>
 ├── <span class="type">buddy/</span>                  <span class="comment">── Buddy 伴侣精灵 UI</span>
 └── <span class="type">ThemeProvider</span>           <span class="comment">── 主题注入 (dark/light + auto)</span>
-    </div>
+    </pre>
 
     <h2 id="design-system">Design System (16 组件)</h2>
     <p><code>src/components/design-system/</code> 提供可复用的主题化 UI 原语：</p>
@@ -119,7 +119,7 @@
     <h2 id="rendering">渲染机制</h2>
     <p>每个工具都可以提供自己的 React 组件来渲染结果：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// 工具的 React 渲染组件 (以 BashTool 为例)</span>
 <span class="comment">// src/tools/BashTool/BashTool.tsx</span>
 
@@ -133,7 +133,7 @@
     &lt;/<span class="type">Box</span>&gt;
   );
 }
-    </div>
+    </pre>
 
     <p>有 React UI 组件的工具包括：AgentTool（进度显示）、BashTool（命令输出）、FileReadTool（文件内容）、FileEditTool（diff 显示）、AskUserQuestionTool（交互式问题）、MCPTool（进度和结果）等。</p>
 

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>设计思想 - Claude Code 源码分析</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="../" class="nav-logo"><span class="logo-icon">&gt;_</span> Claude Code 源码分析</a>
+    <ul class="nav-links">
+      <li><a href="../">首页</a></li>
+      <li><a href="architecture.html">架构</a></li>
+      <li><a href="agent-loop.html">Agent Loop</a></li>
+      <li><a href="tools.html">工具系统</a></li>
+      <li><a href="permissions.html">权限系统</a></li>
+      <li><a href="agents.html">多智能体</a></li>
+      <li><a href="context.html">上下文管理</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="page-with-sidebar">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">本章内容</div>
+      <a href="#core" class="sidebar-link active">核心观点</a>
+      <a href="#dynamic-prompt" class="sidebar-link">动态 System Prompt</a>
+      <a href="#task-philosophy" class="sidebar-link">做任务的哲学</a>
+      <a href="#blast-radius" class="sidebar-link">爆炸半径意识</a>
+      <a href="#tool-grammar" class="sidebar-link">工具使用语法</a>
+      <a href="#agent-roles" class="sidebar-link">六个内建 Agent</a>
+      <a href="#agent-pipeline" class="sidebar-link">14 步调度流水线</a>
+      <a href="#tool-governance" class="sidebar-link">工具治理链路</a>
+      <a href="#extension" class="sidebar-link">三套扩展机制</a>
+      <a href="#delegation" class="sidebar-link">子 Agent Prompt 规范</a>
+      <a href="#context-budget" class="sidebar-link">上下文是预算</a>
+      <a href="#lifecycle" class="sidebar-link">生命周期管理</a>
+      <a href="#five-principles" class="sidebar-link">五条核心原则</a>
+    </div>
+  </aside>
+
+  <main class="page-main">
+    <div class="section-tag">Chapter 14</div>
+    <h1>设计思想深度解读</h1>
+    <p>不是代码层面的分析，而是工程思路的解读。基于源码拆解提炼的设计原则。<br><span style="color: var(--text-muted); font-size: 0.85rem;">来源：<a href="https://x.com/tvytlx/status/2038939480892346699">@tvytlx</a></span></p>
+
+    <h2 id="core">源码泄露了什么秘密？</h2>
+    <p>大多数人对 Claude Code 的分析聚焦在两件事：system prompt 写了什么、它调了哪些工具。这两件事确实重要，但它们只是这个系统的<strong>皮肤</strong>。</p>
+    <p>真正差在哪？差在 prompt 背后有一整套<strong>编排机制</strong>，工具背后有一整条<strong>治理流水线</strong>，Agent 背后有一套<strong>分工和调度系统</strong>，生态扩展背后有一套让模型"知道自己能干什么"的<strong>感知通道</strong>。</p>
+
+    <div class="info-box">
+      Claude Code 的稳不是来自某段神奇文案，是来自<strong>工程</strong>。
+    </div>
+
+    <h2 id="dynamic-prompt">1. System Prompt 不是一段固定文本</h2>
+    <p>Claude Code 的 system prompt 是由 <code>getSystemPrompt()</code> 函数<strong>动态拼装</strong>出来的。</p>
+
+    <h3>静态部分（"宪法"）</h3>
+    <ul>
+      <li>身份定位 <code>getSimpleIntroSection()</code></li>
+      <li>系统规范 <code>getSimpleSystemSection()</code></li>
+      <li>做任务的哲学 <code>getSimpleDoingTasksSection()</code></li>
+      <li>风险动作规范 <code>getActionsSection()</code></li>
+      <li>工具使用规范 <code>getUsingYourToolsSection()</code></li>
+      <li>语气风格 <code>getSimpleToneAndStyleSection()</code></li>
+      <li>输出效率 <code>getOutputEfficiencySection()</code></li>
+    </ul>
+
+    <h3>动态部分（"当期政策"）</h3>
+    <ul>
+      <li>session guidance、memory、环境信息、语言设置、输出风格</li>
+      <li>MCP instructions、scratchpad、function result clearing</li>
+      <li>token budget、brief mode</li>
+    </ul>
+
+    <div class="info-box">
+      <strong>关键设计：</strong> <code>SYSTEM_PROMPT_DYNAMIC_BOUNDARY</code> 标记明确了<strong>缓存友好边界</strong>。边界之前的内容稳定，可以被 API 层缓存。当产品每天处理海量请求时，这种设计直接影响运营成本。
+    </div>
+
+    <h2 id="task-philosophy">2. "做任务的哲学"写成了制度</h2>
+    <p><code>getSimpleDoingTasksSection()</code> 把行为规范写成制度，而不是依赖模型临场发挥：</p>
+
+    <ul>
+      <li>不要加用户没要求的功能</li>
+      <li>不要过度抽象</li>
+      <li>不要瞎重构</li>
+      <li>不要乱加注释和文档字符串</li>
+      <li>不要做不必要的错误处理和兜底逻辑</li>
+      <li>不要设计面向未来的抽象</li>
+      <li>先读代码再改代码</li>
+      <li>不要轻易创建新文件</li>
+      <li>不要给时间估计</li>
+      <li>方法失败时先诊断原因再换策略</li>
+      <li>删除确认没用的东西，不搞兼容性垃圾</li>
+      <li>结果要如实汇报，不能假装自己测试过了</li>
+    </ul>
+
+    <div class="info-box warning">
+      <strong>"不要信任模型的自觉性"</strong> — 好行为要写成制度，不是靠模型自己发挥。
+    </div>
+
+    <h2 id="blast-radius">3. 风险动作：把爆炸半径意识编进系统</h2>
+    <p><code>getActionsSection()</code> 定义了什么叫"需要确认的风险动作"：</p>
+    <ul>
+      <li>破坏性操作</li>
+      <li>难以回滚的操作</li>
+      <li>修改共享状态</li>
+      <li>对外可见的动作</li>
+      <li>上传到第三方工具</li>
+    </ul>
+    <p>还特别强调：不要用破坏性操作当快捷方式，遇到陌生状态先调查，merge conflict 和 lock file 不要粗暴删除。</p>
+
+    <h2 id="tool-grammar">4. 工具使用规范是 grammar，不是工具列表</h2>
+    <p>这不是在说"你有这些工具"，是在说"你必须用正确的方式使用这些工具"：</p>
+    <ul>
+      <li>读文件用 <code>FileRead</code>，不要用 <code>cat/head/tail</code></li>
+      <li>改文件用 <code>FileEdit</code>，不要用 <code>sed/awk</code></li>
+      <li>新建文件用 <code>FileWrite</code>，不要用 <code>echo</code> 重定向</li>
+      <li>搜文件用 <code>Glob</code>，搜内容用 <code>Grep</code></li>
+      <li>Bash 只留给真正需要 shell 的场景</li>
+      <li>没有依赖关系的工具调用要并行</li>
+    </ul>
+    <p>很多 agent 的不稳定，恰恰来自模型用错了工具。比如用 bash sed 去改代码，一个正则写错就崩了。</p>
+
+    <h2 id="agent-roles">5. 六个内建 Agent：分工比想象中细</h2>
+
+    <div class="tool-table-wrap">
+      <table class="tool-table">
+        <thead>
+          <tr><th>Agent</th><th>职责</th><th>权限</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="tool-name">General Purpose</span></td><td>主任务执行</td><td>全权限</td></tr>
+          <tr><td><span class="tool-name">Explore</span></td><td>代码探索</td><td>纯只读（不能 bash/不能写文件）</td></tr>
+          <tr><td><span class="tool-name">Plan</span></td><td>需求理解 + 架构规划</td><td>纯只读（architect，不是 executor）</td></tr>
+          <tr><td><span class="tool-name">Verification</span></td><td>独立验证</td><td>try to break it</td></tr>
+          <tr><td><span class="tool-name">Claude Code Guide</span></td><td>引导用户</td><td>只读</td></tr>
+          <tr><td><span class="tool-name">Statusline Setup</span></td><td>状态栏配置</td><td>只读</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>背后判断：<strong>让一个 Agent 同时做研究、规划、实现、验证，最后每件事都做不扎实。</strong></p>
+
+    <h3>Explore Agent 的只读设计</h3>
+    <ul>
+      <li>不能创建/修改/删除/移动文件</li>
+      <li>不能写临时文件、不能运行改变状态的命令</li>
+      <li>工具只有 <code>Glob</code>、<code>Grep</code>、<code>FileRead</code></li>
+      <li>Bash 只允许 <code>ls</code>、<code>git status</code>、<code>git log</code>、<code>git diff</code></li>
+    </ul>
+    <p>探索阶段如果不小心改了什么东西，后面的实现阶段就会出问题。把探索和实现的权限<strong>彻底隔离</strong>。</p>
+
+    <h3>Verification Agent："想办法搞坏它"</h3>
+    <p>Prompt 点出两类常见验证失败：</p>
+    <ol>
+      <li><strong>verification avoidance</strong> — 只看代码不跑检查，写个 PASS 就走了</li>
+      <li><strong>被前 80% 迷惑</strong> — UI 看起来行、测试过了，就忽略剩下 20%</li>
+    </ol>
+    <p>强制要求做 <strong>adversarial probes</strong>，主动找边界情况。每个检查必须带实际执行的命令和输出。最后必须给出 <code>VERDICT: PASS/FAIL/PARTIAL</code>。</p>
+
+    <div class="info-box">
+      "实现者和验证者分离"在传统软件工程里是常识，但在 AI Agent 系统里，大部分产品还没做到这一步。
+    </div>
+
+    <h2 id="agent-pipeline">6. 子 Agent 调度的 14 步 pipeline</h2>
+
+    <div class="flow-steps">
+      <div class="flow-step"><div class="flow-num">1</div><div class="flow-content"><h4>主模型决定调用 Agent 工具</h4></div></div>
+      <div class="flow-step"><div class="flow-num">2</div><div class="flow-content"><h4>解析输入</h4></div></div>
+      <div class="flow-step"><div class="flow-num">3</div><div class="flow-content"><h4>判断类型</h4><p>teammate / fork / built-in / background / remote</p></div></div>
+      <div class="flow-step"><div class="flow-num">4</div><div class="flow-content"><h4>选择 agent definition</h4></div></div>
+      <div class="flow-step"><div class="flow-num">5</div><div class="flow-content"><h4>构造 prompt messages</h4></div></div>
+      <div class="flow-step"><div class="flow-num">6</div><div class="flow-content"><h4>构造或继承 system prompt</h4></div></div>
+      <div class="flow-step"><div class="flow-num">7</div><div class="flow-content"><h4>组装工具池</h4></div></div>
+      <div class="flow-step"><div class="flow-num">8</div><div class="flow-content"><h4>创建 agent 专属的 ToolUseContext</h4></div></div>
+      <div class="flow-step"><div class="flow-num">9</div><div class="flow-content"><h4>注册 hooks、skills、MCP servers</h4></div></div>
+      <div class="flow-step"><div class="flow-num">10</div><div class="flow-content"><h4>调用 runAgent()</h4></div></div>
+      <div class="flow-step"><div class="flow-num">11</div><div class="flow-content"><h4>内部调用 query() 进入主循环</h4></div></div>
+      <div class="flow-step"><div class="flow-num">12</div><div class="flow-content"><h4>query 产出消息流</h4></div></div>
+      <div class="flow-step"><div class="flow-num">13</div><div class="flow-content"><h4>记录 transcript，处理生命周期，清理资源</h4></div></div>
+      <div class="flow-step"><div class="flow-num">14</div><div class="flow-content"><h4>汇总结果或走异步通知</h4></div></div>
+    </div>
+
+    <div class="info-box">
+      <strong>fork path 的 cache-identical prefix 设计：</strong> fork 时继承主线程的 system prompt 和完整对话上下文，工具集尽量保持一致，目的是让 API 请求的前缀保持字节级一致，从而<strong>复用主线程的 prompt cache</strong>。
+    </div>
+
+    <h2 id="tool-governance">7. 工具调用的治理链路（14 步）</h2>
+    <p>当模型决定调用一个工具时，实际链路：</p>
+
+    <ol>
+      <li>找到对应的 tool definition</li>
+      <li>解析 MCP metadata</li>
+      <li>用 Zod schema 做输入校验</li>
+      <li>跑 tool 自己的 <code>validateInput</code></li>
+      <li>如果是 Bash，跑 <code>speculative classifier</code> 预判风险</li>
+      <li>跑 <code>PreToolUse hooks</code></li>
+      <li>解析 hook 返回的权限结果</li>
+      <li>走正式的 permission 决策流程</li>
+      <li>根据 permission 决策可能再次修正输入</li>
+      <li>真正执行 <code>tool()</code></li>
+      <li>记录 analytics、tracing、OTel</li>
+      <li>跑 <code>PostToolUse hooks</code></li>
+      <li>处理结构化输出</li>
+      <li>失败时跑 <code>PostToolUseFailure hooks</code></li>
+    </ol>
+
+    <div class="info-box warning">
+      <strong>哲学：默认假设事情会出问题。</strong> 模型可能乱传参数（输入校验），操作可能有风险（speculative classifier + 权限），执行可能失败（失败 hook），成功了也可能需要额外处理（post hook）。
+    </div>
+
+    <h3>Hook 的表达能力</h3>
+    <p><code>PreToolUse Hook</code> 不只能记日志，它能返回：</p>
+    <ul>
+      <li><code>message</code> — 改写输出</li>
+      <li><code>blockingError</code> — 直接拒绝</li>
+      <li><code>updatedInput</code> — 改写输入</li>
+      <li><code>permissionBehavior</code> — 修改权限行为</li>
+      <li><code>preventContinuation</code> — 阻止后续流程</li>
+      <li><code>additionalContexts</code> — 补充上下文</li>
+    </ul>
+    <p>但权力不是无限的：<strong>Hook 说 allow 不一定能绕过系统 deny/ask 规则。Hook 说 deny 则直接生效。</strong> 强大但受控。</p>
+
+    <h2 id="extension">8. 三套扩展机制</h2>
+
+    <div class="chapters-grid" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-primary); font-size: 0.95rem;">Skill</h3>
+        <p>不是文档，是 workflow package。带 frontmatter 的 markdown prompt bundle，可以声明 allowed-tools，按需注入上下文。系统要求模型匹配到 skill 时<strong>必须调用</strong>，不能只提到而不执行。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-warm); font-size: 0.95rem;">Plugin</h3>
+        <p>比 Skill 更重：markdown commands、SKILL.md 目录、commandsMetadata、userConfig、shell frontmatter、model 和 effort hints。是<strong>模型行为层面的扩展单元</strong>。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="color: var(--accent-green); font-size: 0.95rem;">MCP</h3>
+        <p>不只是工具桥。MCP server 连接时，如果提供了 instructions，会被拼进 system prompt。同时给模型<strong>新工具和使用说明</strong>。</p>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <strong>共同点：让模型感知自己的能力。</strong> 通过 skills 列表、agent 列表、MCP instructions、session guidance 这些通道，让模型知道当前有哪些扩展能力、什么时候该用、怎么用。很多平台也有插件系统，但模型本身不知道这些东西存在。
+    </div>
+
+    <h2 id="delegation">9. 给子 Agent 写 prompt 的规范</h2>
+    <p><code>AgentTool/prompt.ts</code> 专门教模型怎么给子 Agent 写 prompt：</p>
+    <ul>
+      <li>fresh agent 没有上下文，要像给新来的同事做 briefing</li>
+      <li>说明<strong>目标和原因</strong></li>
+      <li>说明<strong>你已经排除了什么</strong></li>
+      <li>提供<strong>足够的背景</strong>让它能做判断</li>
+      <li>如果只要短答案，明确说</li>
+      <li><strong>不要把理解任务的工作外包给子 agent</strong></li>
+      <li>不要写"基于你的发现再去修 bug"这种偷懒 prompt</li>
+      <li>应该给到具体的 file path、行号、具体改动要求</li>
+    </ul>
+
+    <div class="info-box warning">
+      在限制"<strong>懒 delegation</strong>"。多 Agent 系统里最常见的失败模式：主 Agent 丢一个模糊任务给子 Agent，子 Agent 理解偏了，做出来不对。Claude Code 通过 prompt <strong>强制要求主 Agent 承担 synthesis 责任</strong>。
+    </div>
+
+    <h2 id="context-budget">10. 上下文是预算，不是免费空气</h2>
+    <p>整个源码里有大量设计围绕一个主题：<strong>上下文是稀缺资源</strong>。</p>
+    <ul>
+      <li><code>SYSTEM_PROMPT_DYNAMIC_BOUNDARY</code> — 缓存友好边界</li>
+      <li>fork path 的 cache-identical prefix — 复用主线程缓存</li>
+      <li>Skill 按需注入，不是一开始全塞进去</li>
+      <li>MCP instructions 根据连接状态注入</li>
+      <li>function result clearing 机制</li>
+      <li>summarize tool results 机制</li>
+      <li>compact 和 transcript 机制</li>
+      <li>resume 机制</li>
+    </ul>
+    <p>做 Demo 可以不在乎这些。做产品时，缓存命中率提高 10%，一个月省的钱够多雇一个人。</p>
+
+    <h2 id="lifecycle">11. 后台任务和生命周期管理</h2>
+    <p><code>runAgent()</code> 里有大量不起眼但很说明问题的代码：</p>
+    <ul>
+      <li><code>recordSidechainTranscript()</code></li>
+      <li><code>writeAgentMetadata()</code></li>
+      <li><code>registerPerfettoAgent()</code></li>
+      <li><code>cleanupAgentTracking()</code></li>
+      <li><code>killShellTasksForAgent()</code></li>
+      <li>清理 session hooks、克隆的文件状态、todos entry</li>
+    </ul>
+    <p>后台 Agent 有独立的 abort controller，支持前后台切换、自动 summarization、notification 回到主线程。</p>
+
+    <div class="info-box">
+      大部分 Agent 系统在第一天跑得挺好。问题出在第二天，第一百天。任务中断了怎么续？脏状态怎么清？子 Agent 的 shell 进程没杀掉怎么办？Claude Code 对这些问题都有明确的处理路径。这就是为什么它用起来更像一个<strong>正式产品</strong>，而不是一个很聪明的 prototype。
+    </div>
+
+    <h2 id="five-principles">12. 五条核心设计原则</h2>
+
+    <div class="chapters-grid" style="grid-template-columns: 1fr;">
+      <div class="chapter-card">
+        <h3 style="font-size: 0.95rem;">原则一：不要信任模型的自觉性</h3>
+        <p>好行为要写成制度。你希望模型先读代码再改代码，就把这条规则写进 prompt。你希望模型遇到风险操作停下来确认，就在 runtime 层加权限检查。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="font-size: 0.95rem;">原则二：把角色拆开</h3>
+        <p>至少把"做事的人"和"验收的人"分开。同一个 Agent 既实现又验证，天然会倾向于觉得自己做得没问题。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="font-size: 0.95rem;">原则三：工具调用要有治理</h3>
+        <p>不是模型说调就调，中间要有输入校验、权限检查、风险预判。执行完也不是结束，要有 post-processing 和失败处理。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="font-size: 0.95rem;">原则四：上下文是预算</h3>
+        <p>每个 token 都有成本。能缓存的要缓存，能按需加载的不要一开始就塞进去，能压缩的要压缩。做 Demo 可以不在乎，做产品必须在乎。</p>
+      </div>
+      <div class="chapter-card">
+        <h3 style="font-size: 0.95rem;">原则五：生态的关键是模型感知</h3>
+        <p>你给系统接了十个插件，但模型不知道什么时候该用哪个，那这十个插件就等于不存在。扩展机制的最后一步，是让模型看到自己的能力清单。</p>
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top: 2rem;">
+      <strong>一句话总结：</strong> Claude Code 的秘密不在 prompt 里，在一整套把行为制度、工具治理、Agent 分工、上下文经济学和生命周期管理连成闭环的工程系统里。
+    </div>
+
+  </main>
+</div>
+
+<footer class="footer">
+  <p>Claude Code 源码分析 &mdash; 基于逆向工程/反编译版本的深度分析</p>
+</footer>
+
+<script src="../js/main.js"></script>
+</body>
+</html>

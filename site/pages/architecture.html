@@ -66,7 +66,7 @@
     <h2 id="runtime">运行时 & 构建系统</h2>
     <p>Claude Code 完全基于 <strong>Bun</strong> 运行时，而非 Node.js。所有导入、构建和执行都使用 Bun 的原生 API。</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment"># 安装依赖</span>
 bun install
 
@@ -82,7 +82,7 @@ bun run lint              <span class="comment"># Biome 代码检查</span>
 
 <span class="comment"># Pipe 模式</span>
 echo "say hello" | bun run src/entrypoints/cli.tsx -p
-    </div>
+    </pre>
 
     <div class="info-box">
       <strong>为什么选 Bun？</strong> Bun 提供更快的启动时间、原生 TypeScript 支持、内置打包器，以及与 Node.js 兼容的 API。对于一个需要快速启动的 CLI 工具来说，这些都是关键优势。
@@ -161,7 +161,7 @@ echo "say hello" | bun run src/entrypoints/cli.tsx -p
       <li><strong>Session Singletons (src/bootstrap/state.ts)</strong> — 模块级单例：Session ID、当前工作目录、项目根路径、Token 计数。</li>
     </ul>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// AppState 核心字段</span>
 <span class="keyword">interface</span> <span class="type">AppState</span> {
   messages: <span class="type">Message</span>[]           <span class="comment">// 对话消息列表</span>
@@ -172,7 +172,7 @@ echo "say hello" | bun run src/entrypoints/cli.tsx -p
   sessionId: <span class="keyword">string</span>            <span class="comment">// 会话唯一标识</span>
   <span class="comment">// ... 更多字段</span>
 }
-    </div>
+    </pre>
 
     <h2 id="ui">UI 渲染层</h2>
     <p>Claude Code 的终端 UI 基于 <strong>Ink</strong> — 一个在终端中渲染 React 组件的框架。</p>
@@ -190,7 +190,7 @@ echo "say hello" | bun run src/entrypoints/cli.tsx -p
     <h2 id="feature-flags">Feature Flag 系统 (88+)</h2>
     <p>通过 <code>import { feature } from 'bun:bundle'</code> 实现编译时功能门控。在 Dev 模式下通过环境变量 <code>FEATURE_&lt;FLAG&gt;=1</code> 启用特定功能。</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// 统一从 bun:bundle 导入</span>
 <span class="keyword">import</span> { feature } <span class="keyword">from</span> <span class="string">'bun:bundle'</span>;
 
@@ -202,7 +202,7 @@ echo "say hello" | bun run src/entrypoints/cli.tsx -p
 <span class="comment">//               AGENT_TRIGGERS_REMOTE, CHICAGO_MCP, VOICE_MODE</span>
 <span class="comment">// Build 默认启用: AGENT_TRIGGERS_REMOTE, CHICAGO_MCP, VOICE_MODE</span>
 <span class="comment">// 手动启用: FEATURE_PROACTIVE=1 bun run dev</span>
-    </div>
+    </pre>
 
     <div class="info-box">
       <strong>88+ Feature Flags</strong> 覆盖 6 大类：Agent/自动化 (15)、基��设施 (10)、安全/分类 (6)、工具/能力 (10)、UI/体验 (8)、实验性 (10+)。详见 <a href="internals.html#feature-flags">Ch12 内部机制</a>。MACRO 定义集中在 <code>scripts/defines.ts</code>，当前版本 <strong>v2.1.888</strong>。

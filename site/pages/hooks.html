@@ -168,7 +168,7 @@
     <h2 id="config">配置方式</h2>
     <p>Hook 在 <code>settings.json</code> 中配置：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// ~/.claude/settings.json 或 .claude/settings.json</span>
 {
   <span class="string">"hooks"</span>: {
@@ -191,12 +191,12 @@
     ]
   }
 }
-    </div>
+    </pre>
 
     <h2 id="execution">执行机制</h2>
     <p>Hook 通过子进程执行，输入通过 stdin 传递，输出通过 stdout/stderr 收集：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// 执行流程 (execPromptHook.ts)</span>
 <span class="keyword">async function</span> <span class="fn">executePromptHook</span>(hookConfig, input) {
   <span class="comment">// 1. 启动子进程</span>
@@ -214,7 +214,7 @@
   <span class="keyword">const</span> exitCode = <span class="keyword">await</span> proc.exitCode;
   <span class="keyword">return</span> { exitCode, stdout, stderr };
 }
-    </div>
+    </pre>
 
     <h2 id="exit-codes">Exit Code 约定</h2>
 

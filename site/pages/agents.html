@@ -216,7 +216,7 @@
       </div>
     </div>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// Worktree 隔离的创建过程</span>
 <span class="keyword">async function</span> <span class="fn">createAgentWorktree</span>(agentId: <span class="keyword">string</span>) {
   <span class="comment">// 1. 创建新分支</span>
@@ -229,7 +229,7 @@
   <span class="comment">// 3. 返回隔离的工作目录</span>
   <span class="keyword">return</span> { path: worktreePath, branch };
 }
-    </div>
+    </pre>
 
     <h2 id="fork">Fork 子 Agent</h2>
     <p>Fork 是一种特殊的 Agent 生成模式 — 子 Agent 继承父 Agent 的完整对话上下文：</p>
@@ -245,7 +245,7 @@
     <h2 id="team">Team Swarm 多 Agent 协作</h2>
     <p>Team 系统允许创建多个并行协作的 Agent：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// Team 创建流程</span>
 <span class="keyword">const</span> team = <span class="keyword">await</span> <span class="fn">TeamCreateTool</span>.<span class="fn">call</span>({
   team_name: <span class="string">"refactor-auth"</span>,
@@ -267,7 +267,7 @@
   to: <span class="string">"*"</span>,              <span class="comment">// 广播</span>
   message: <span class="string">"完成后端 API 修改"</span>
 });
-    </div>
+    </pre>
 
     <h2 id="tools-filter">工具过滤策略</h2>
 

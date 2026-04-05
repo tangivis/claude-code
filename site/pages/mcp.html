@@ -81,7 +81,7 @@
     <h2 id="tools">MCP 工具代理</h2>
     <p>MCP Server 提供的工具通过 <code>MCPTool</code> 代理执行：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// MCP 工具命名约定</span>
 mcp__github__create_pr      <span class="comment">// server: github, tool: create_pr</span>
 mcp__database__query         <span class="comment">// server: database, tool: query</span>
@@ -99,15 +99,15 @@ mcp__slack__send_message     <span class="comment">// server: slack, tool: send_
     <span class="keyword">return</span> result;
   }
 }
-    </div>
+    </pre>
 
     <h3>权限处理</h3>
     <p>MCP 工具的权限通过通配符匹配：</p>
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// 权限规则示例</span>
 { toolName: <span class="string">'mcp__github__*'</span> }          <span class="comment">// 允许 github server 的所有工具</span>
 { toolName: <span class="string">'mcp__database__query'</span> }     <span class="comment">// 仅允许 database 的 query 工具</span>
-    </div>
+    </pre>
 
     <h2 id="resources">资源系统</h2>
 

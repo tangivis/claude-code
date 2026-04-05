@@ -87,7 +87,7 @@
     <h2 id="query-fn">query() 函数详解</h2>
     <p>位于 <code>src/query.ts</code>，这是整个系统最核心的函数：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="keyword">async function*</span> <span class="fn">query</span>(params: <span class="type">QueryParams</span>): <span class="type">AsyncGenerator</span>&lt;<span class="type">StreamEvent</span> | <span class="type">Message</span>&gt; {
   <span class="comment">// 主循环：每次迭代 = 一个 "turn"</span>
   <span class="keyword">while</span> (<span class="keyword">true</span>) {
@@ -117,7 +117,7 @@
     <span class="keyword">return</span>;
   }
 }
-    </div>
+    </pre>
 
     <h2 id="turn-flow">Turn 流程详解</h2>
     <p>每个 turn 内部经历以下精确步骤：</p>
@@ -177,7 +177,7 @@
     <h2 id="streaming">流式处理架构</h2>
     <p>Claude Code 的流式处理基于 AsyncGenerator 链：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// 事件类型层级</span>
 <span class="type">StreamEvent</span>
 ├── <span class="string">'stream_request_start'</span>     <span class="comment">// API 请求开始</span>
@@ -189,12 +189,12 @@
 │   ├── <span class="type">ProgressMessage</span>         <span class="comment">// 工具执行进度</span>
 │   └── <span class="type">ToolUseSummaryMessage</span>   <span class="comment">// 工具输出压缩</span>
 └── <span class="type">TombstoneMessage</span>            <span class="comment">// 已移除/替换的消息</span>
-    </div>
+    </pre>
 
     <h2 id="tool-exec">工具执行流程</h2>
     <p>工具执行通过 <code>StreamingToolExecutor</code> 进行编排（src/services/tools/toolOrchestration.ts）：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// 对每个 tool_use block：</span>
 <span class="keyword">for</span> (<span class="keyword">const</span> toolUse <span class="keyword">of</span> assistantMessage.tool_use_blocks) {
   <span class="comment">// Step 1: 权限检查</span>
@@ -214,7 +214,7 @@
   <span class="comment">// Step 3: 收集结果</span>
   results.<span class="fn">push</span>({ type: <span class="string">'tool_result'</span>, content: result });
 }
-    </div>
+    </pre>
 
     <h2 id="error-recovery">错误恢复策略</h2>
 

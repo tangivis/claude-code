@@ -65,13 +65,13 @@
 
     <p>Provider 选择逻辑在 <code>src/utils/model/providers.ts</code>：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// Provider 选择优先级</span>
 1. 环境变量 <span class="string">CLAUDE_CODE_PROVIDER</span>
 2. 配置文件 settings.json
 3. CLI 参数 --provider
 4. 默认: <span class="string">"anthropic"</span>
-    </div>
+    </pre>
 
     <h2 id="api-client">API 客户端 (claude.ts)</h2>
     <p>核心 API 客户端位于 <code>src/services/api/claude.ts</code>，负责：</p>
@@ -83,7 +83,7 @@
       <li><strong>错误处理</strong> — 速率限制、token 超限、网络错误</li>
     </ul>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// API 调用核心 (简化)</span>
 <span class="keyword">async function</span> <span class="fn">ask</span>(params: <span class="type">AskParams</span>) {
   <span class="keyword">const</span> requestParams = {
@@ -103,12 +103,12 @@
   <span class="comment">// 调用 Anthropic SDK</span>
   <span class="keyword">return</span> anthropic.messages.<span class="fn">stream</span>(requestParams);
 }
-    </div>
+    </pre>
 
     <h2 id="streaming">流式响应处理</h2>
     <p>API 返回的流式事件类型：</p>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="type">BetaRawMessageStreamEvent</span>
 ├── <span class="string">message_start</span>         <span class="comment">// 消息开始 (含 usage 信息)</span>
 ├── <span class="string">content_block_start</span>   <span class="comment">// 内容块开始 (text/tool_use/thinking)</span>
@@ -123,7 +123,7 @@
 <span class="string">'end_turn'</span>             <span class="comment">// 正常结束</span>
 <span class="string">'tool_use'</span>             <span class="comment">// 需要执行工具</span>
 <span class="string">'max_tokens'</span>           <span class="comment">// 达到 token 限制</span>
-    </div>
+    </pre>
 
     <h2 id="thinking">Extended Thinking</h2>
     <p>Extended Thinking 让模型在生成回答前先进行推理（chain-of-thought）：</p>

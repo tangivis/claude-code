@@ -128,7 +128,7 @@
     </div>
 
     <p>每条规则的结构：</p>
-    <div class="code-block">
+    <pre class="code-block">
 <span class="keyword">interface</span> <span class="type">PermissionRule</span> {
   source: <span class="type">PermissionRuleSource</span>     <span class="comment">// 来源 (7 层之一)</span>
   ruleBehavior: <span class="string">'allow'</span> | <span class="string">'deny'</span> | <span class="string">'ask'</span>
@@ -142,7 +142,7 @@
 { toolName: <span class="string">'Bash'</span>, ruleContent: <span class="string">'prefix:npm'</span> }     <span class="comment">// npm 开头的命令</span>
 { toolName: <span class="string">'Read'</span>, ruleContent: <span class="string">'/home/user/src'</span> }  <span class="comment">// 特定目录</span>
 { toolName: <span class="string">'mcp__github__*'</span> }                      <span class="comment">// MCP server 通配</span>
-    </div>
+    </pre>
 
     <h2 id="check-flow">权限检查流程</h2>
     <p>每次工具调用都经过 <code>hasPermissionsToUseTool()</code> 的完整检查链：</p>
@@ -198,7 +198,7 @@
       <li>低置信度 → 回退到用户提示</li>
     </ul>
 
-    <div class="code-block">
+    <pre class="code-block">
 <span class="comment">// 分类器的推测性检查（2 秒竞速）</span>
 <span class="keyword">const</span> classifierResult = <span class="keyword">await</span> Promise.<span class="fn">race</span>([
   <span class="fn">bashClassifier</span>(command),
@@ -211,7 +211,7 @@
   <span class="keyword">return</span> <span class="string">'allow'</span>;
 }
 <span class="comment">// 否则回退到用户提示</span>
-    </div>
+    </pre>
 
     <h2 id="dangerous">危险命令检测</h2>
     <p>系统内置了危险规则检测，防止用户配置过于宽松的允许规则：</p>
