@@ -3,6 +3,13 @@
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Convert div.code-block to pre elements for reliable whitespace
+  document.querySelectorAll('div.code-block').forEach(div => {
+    const pre = document.createElement('pre');
+    pre.className = div.className;
+    pre.innerHTML = div.innerHTML;
+    div.replaceWith(pre);
+  });
   // Intersection Observer for animations
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {

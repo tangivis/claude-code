@@ -433,7 +433,8 @@ a:hover { color: var(--accent-warm); }
 }
 
 /* Code blocks */
-.code-block {
+pre.code-block,
+div.code-block {
   background: var(--bg-code);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
@@ -444,8 +445,10 @@ a:hover { color: var(--accent-warm); }
   font-size: 0.82rem;
   line-height: 1.6;
   color: var(--text-primary);
-  white-space: pre;
+  white-space: pre !important;
   word-wrap: normal;
+  tab-size: 2;
+  -moz-tab-size: 2;
 }
 .code-block .comment { color: var(--text-muted); }
 .code-block .keyword { color: var(--accent-primary); }
