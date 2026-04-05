@@ -446,6 +446,8 @@ a:hover { color: var(--accent-warm); }
   font-size: 0.82rem;
   line-height: 1.6;
   color: var(--text-primary);
+  white-space: pre;
+  word-wrap: normal;
 }
 .code-block .comment { color: var(--text-muted); }
 .code-block .keyword { color: var(--accent-primary); }
