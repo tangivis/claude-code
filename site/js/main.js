@@ -73,4 +73,12 @@ document.addEventListener('DOMContentLoaded', () => {
       header.classList.toggle('open', !isOpen);
     });
   });
+
+  // File tree toggle
+  document.querySelectorAll('.tree-toggle').forEach(toggle => {
+    toggle.addEventListener('click', () => {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+    });
+  });
 });

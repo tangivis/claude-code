@@ -626,12 +626,15 @@ a:hover { color: var(--accent-warm); }
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
   .nav-links { display: none; }
-  .hero { padding: 120px 1.5rem 60px; }
-  .hero h1 { font-size: 1.8rem; }
-  .stats-bar { gap: 1.5rem; }
-  .stat-value { font-size: 1.5rem; }
+  .hero { padding: 120px 1rem 50px; }
+  .hero h1 { font-size: 1.6rem; }
+  .hero p { font-size: 0.95rem; }
+  .stats-bar { gap: 1rem; }
+  .stat-value { font-size: 1.3rem; }
+  .stat-label { font-size: 0.65rem; }
   .chapters-grid { grid-template-columns: 1fr; }
-  .section { padding: 2.5rem 1.5rem; }
+  .section { padding: 2rem 1rem; }
+  .section-title { font-size: 1.4rem; }
   .page-with-sidebar { flex-direction: column; }
   .sidebar {
     width: 100%;
@@ -639,10 +642,43 @@ a:hover { color: var(--accent-warm); }
     height: auto;
     border-right: none;
     border-bottom: 1px solid var(--border-default);
+    padding: 1rem 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
   }
-  .page-main { padding: 1.5rem; }
+  .sidebar-section { width: 100%; margin-bottom: 0.5rem; }
+  .sidebar-link { display: inline-block; padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+  .page-main { padding: 1.25rem 1rem 3rem; }
+  .page-content h1 { font-size: 1.5rem; }
+  .page-content h2 { font-size: 1.15rem; }
   .arch-flow { min-width: auto; flex-direction: column; }
   .arch-arrow { transform: rotate(90deg); }
+  .arch-box { min-width: auto; padding: 0.75rem 1rem; }
+  .code-block { padding: 0.75rem; font-size: 0.72rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tool-table { font-size: 0.75rem; }
+  .tool-table th, .tool-table td { padding: 0.5rem 0.6rem; }
+  .flow-step { gap: 0.75rem; }
+  .flow-num { width: 28px; height: 28px; font-size: 0.65rem; }
+  .flow-content h4 { font-size: 0.85rem; }
+  .info-box { padding: 0.75rem 1rem; font-size: 0.8rem; }
+  .chapter-card { padding: 1.25rem; }
+  .chapter-card h3 { font-size: 0.95rem; }
+  .chapter-card p { font-size: 0.8rem; }
+  .tree-desc { display: none; }
+  .tree-badge { font-size: 0.55rem; }
+  .file-tree ul ul { padding-left: 0.75rem; }
+}
+
+@media (max-width: 480px) {
+  .hero { padding: 100px 0.75rem 40px; }
+  .hero h1 { font-size: 1.3rem; }
+  .stats-bar { gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
+  .stat-item { min-width: 60px; }
+  .nav-inner { padding: 0 0.75rem; }
+  .nav-logo { font-size: 0.9rem; }
+  .section { padding: 1.5rem 0.75rem; }
+  .page-main { padding: 1rem 0.75rem 2rem; }
 }
 
 /* ---- Tabs ---- */
@@ -699,7 +735,81 @@ a:hover { color: var(--accent-warm); }
   font-size: 0.9rem;
 }
 
-/* tree diagram */
+/* ---- File Tree (interactive) ---- */
+.file-tree {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  line-height: 1;
+  color: var(--text-secondary);
+  padding: 0.5rem 0;
+}
+.file-tree ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.file-tree ul ul {
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--border-default);
+  margin-left: 0.5rem;
+}
+.file-tree li {
+  margin: 0;
+  padding: 0;
+}
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  transition: background var(--transition);
+  cursor: default;
+}
+.tree-item:hover {
+  background: rgba(192,132,252,0.05);
+}
+.tree-icon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  width: 1.2rem;
+  text-align: center;
+}
+.tree-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.tree-name.is-dir { color: var(--accent-blue); }
+.tree-name.is-file { color: var(--text-secondary); font-weight: 400; }
+.tree-desc {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tree-badge.hot { background: rgba(248,113,113,0.15); color: var(--accent-red); }
+.tree-badge.core { background: rgba(192,132,252,0.15); color: var(--accent-primary); }
+.tree-badge.new { background: rgba(52,211,153,0.15); color: var(--accent-green); }
+.tree-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+.tree-toggle .tree-icon { transition: transform 0.2s ease; }
+.tree-toggle[aria-expanded="false"] .tree-icon { transform: rotate(-90deg); }
+.tree-toggle[aria-expanded="false"] + ul { display: none; }
+
+/* Legacy tree (keep for backward compat) */
 .tree {
   font-family: var(--font-mono);
   font-size: 0.82rem;
