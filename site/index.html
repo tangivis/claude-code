@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Claude Code 源码深度分析</title>
+    <meta name="description" content="深入 Anthropic 官方 CLI 工具的内部实现 — 从架构设计到 Agent Loop，从 60 个工具系统到多层权限模型，完整拆解一个工业级 AI 编程智能体是如何构建的。" />
+    <meta property="og:title" content="Claude Code 源码深度分析" />
+    <meta property="og:description" content="从源码看 AI 编程智能体" />
+    <meta property="og:type" content="website" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container nav-row">
+        <a class="brand" href="#hero" aria-label="首页">
+          <span class="brand-mark" aria-hidden="true">&gt;_</span>
+          <span class="brand-name">Claude Code 源码分析</span>
+        </a>
+        <nav class="primary-nav" aria-label="章节导航">
+          <a href="#hero">首页</a>
+          <a href="#architecture">架构</a>
+          <a href="#agent-loop">Agent Loop</a>
+          <a href="#tools">工具系统</a>
+          <a href="#permissions">权限系统</a>
+          <a href="#multi-agent">多智能体</a>
+          <a href="#context">上下文管理</a>
+          <a href="#design">设计思想</a>
+        </nav>
+        <a class="src-link" href="https://github.com/tangivis/claude-code" target="_blank" rel="noopener">src ↗</a>
+      </div>
+    </header>
+
+    <main>
+      <!-- HERO -->
+      <section id="hero" class="hero">
+        <div class="container">
+          <p class="eyebrow">REVERSE ENGINEERED &nbsp;/&nbsp; SOURCE-LEVEL ANALYSIS</p>
+          <h1 class="display">
+            <span class="display-en">Understanding Claude Code</span>
+            <span class="display-zh">从源码看 AI 编程智能体</span>
+          </h1>
+          <p class="lede">
+            深入 Anthropic 官方 CLI 工具的内部实现 — 从架构设计到 Agent Loop，从 60 个工具系统到多层权限模型，完整拆解一个工业级 AI 编程智能体是如何构建的。
+          </p>
+
+          <ul class="stats" role="list">
+            <li><span class="stat-num">60</span><span class="stat-label">内置工具</span></li>
+            <li><span class="stat-num">33</span><span class="stat-label">Feature Flags</span></li>
+            <li><span class="stat-num">Bun</span><span class="stat-label">运行时</span></li>
+            <li><span class="stat-num">7</span><span class="stat-label">模型提供商</span></li>
+            <li><span class="stat-num">v2.2.1</span><span class="stat-label">版本</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ARCHITECTURE -->
+      <section id="architecture" class="section">
+        <div class="container">
+          <p class="eyebrow">ARCHITECTURE OVERVIEW</p>
+          <h2>核心架构一览</h2>
+          <p class="section-lede">Claude Code 的请求处理流程：从用户输入到 API 调用，再到工具执行的完整链路。</p>
+
+          <ol class="flow" role="list">
+            <li class="flow-card">
+              <span class="flow-tag">入口</span>
+              <code>cli.tsx</code>
+              <small>polyfills + bootstrap</small>
+            </li>
+            <li class="flow-arrow" aria-hidden="true">→</li>
+            <li class="flow-card">
+              <span class="flow-tag">CLI 解析</span>
+              <code>main.tsx</code>
+              <small>Commander.js</small>
+            </li>
+            <li class="flow-arrow" aria-hidden="true">→</li>
+            <li class="flow-card">
+              <span class="flow-tag">交互界面</span>
+              <code>REPL.tsx</code>
+              <small>React + Ink</small>
+            </li>
+            <li class="flow-arrow" aria-hidden="true">→</li>
+            <li class="flow-card">
+              <span class="flow-tag">查询引擎</span>
+              <code>QueryEngine</code>
+              <small>会话管理</small>
+            </li>
+            <li class="flow-arrow" aria-hidden="true">→</li>
+            <li class="flow-card">
+              <span class="flow-tag">API 调用</span>
+              <code>query()</code>
+              <small>流式响应</small>
+            </li>
+            <li class="flow-arrow" aria-hidden="true">→</li>
+            <li class="flow-card">
+              <span class="flow-tag">工具执行</span>
+              <code>Tools</code>
+              <small>60 个工具</small>
+            </li>
+          </ol>
+
+          <div class="layer-grid">
+            <article class="layer-card">
+              <h3>运行时</h3>
+              <p>Bun 优先，构建产物兼容 Node.js。<code>build.ts</code> 自动后处理 <code>import.meta.require</code>，让产物能在两套运行时下都能跑。</p>
+            </article>
+            <article class="layer-card">
+              <h3>渲染层</h3>
+              <p>Ink + React 终端 UI。<code>packages/@ant/ink</code> 是 fork 的内部版本，149 个组件，支持 7 个主题变体、89+ 语义色板。</p>
+            </article>
+            <article class="layer-card">
+              <h3>状态层</h3>
+              <p>Zustand 风格 store + 模块级单例。<code>AppStateStore</code> 管理会话级状态，<code>bootstrap/state.ts</code> 管全局单例。</p>
+            </article>
+            <article class="layer-card">
+              <h3>工程化</h3>
+              <p>Bun workspaces + 15 个内部包。React Compiler 全量启用，构建时自动产出 memoization 代码。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- AGENT LOOP -->
+      <section id="agent-loop" class="section section-alt">
+        <div class="container">
+          <p class="eyebrow">AGENT LOOP</p>
+          <h2>会话循环与流式调度</h2>
+          <p class="section-lede">每一次用户输入背后都是一个完整的状态机：消息发出 → 模型流式响应 → 工具调用 → 结果回喂 → 直到模型停止请求工具为止。</p>
+
+          <div class="loop-grid">
+            <article class="loop-card">
+              <span class="loop-num">01</span>
+              <h3>输入归一化</h3>
+              <p><code>PromptInput</code> 收集多模态输入（文本、图片、剪贴板），合并系统注入的上下文，构成一条 user message。</p>
+            </article>
+            <article class="loop-card">
+              <span class="loop-num">02</span>
+              <h3>System Prompt 组装</h3>
+              <p><code>context.ts</code> 拼装系统提示：git 状态、当前时间、CLAUDE.md 内容、记忆文件、用户身份信息。</p>
+            </article>
+            <article class="loop-card">
+              <span class="loop-num">03</span>
+              <h3>流式 API 调用</h3>
+              <p><code>services/api/claude.ts</code> 走 Anthropic SDK 流接口，处理 <code>BetaRawMessageStreamEvent</code>，按事件增量更新 UI。</p>
+            </article>
+            <article class="loop-card">
+              <span class="loop-num">04</span>
+              <h3>工具调用解析</h3>
+              <p>模型返回 <code>tool_use</code> 块时进入工具流水线：权限校验 → 用户审批（如需）→ 实际执行 → 结果整理。</p>
+            </article>
+            <article class="loop-card">
+              <span class="loop-num">05</span>
+              <h3>结果回喂</h3>
+              <p>工具执行结果以 <code>tool_result</code> 形式追加到对话，触发下一轮 API 调用。这是 Agent Loop 的"反馈环"核心。</p>
+            </article>
+            <article class="loop-card">
+              <span class="loop-num">06</span>
+              <h3>压缩与持久化</h3>
+              <p><code>QueryEngine</code> 监控 token 使用，触发自动压缩、文件历史快照、归因记录、turn 级账本管理。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- TOOLS -->
+      <section id="tools" class="section">
+        <div class="container">
+          <p class="eyebrow">TOOL SYSTEM</p>
+          <h2>60 个内置工具</h2>
+          <p class="section-lede">所有工具实现在 <code>packages/builtin-tools</code> 中，通过统一的 <code>Tool</code> 接口装载。每个工具自带 schema、permission 检查、UI 渲染组件。</p>
+
+          <div class="tool-cats">
+            <article class="cat-card">
+              <header>
+                <h3>文件操作</h3>
+                <span class="cat-count">5</span>
+              </header>
+              <ul>
+                <li><code>FileEdit</code></li>
+                <li><code>FileRead</code></li>
+                <li><code>FileWrite</code></li>
+                <li><code>Glob</code></li>
+                <li><code>Grep</code></li>
+              </ul>
+            </article>
+
+            <article class="cat-card">
+              <header>
+                <h3>Shell 执行</h3>
+                <span class="cat-count">3</span>
+              </header>
+              <ul>
+                <li><code>Bash</code></li>
+                <li><code>PowerShell</code></li>
+                <li><code>REPL</code></li>
+              </ul>
+            </article>
+
+            <article class="cat-card">
+              <header>
+                <h3>Agent 系统</h3>
+                <span class="cat-count">5</span>
+              </header>
+              <ul>
+                <li><code>Agent</code></li>
+                <li><code>TaskCreate</code></li>
+                <li><code>TaskUpdate</code></li>
+                <li><code>TaskList</code></li>
+                <li><code>TaskGet</code></li>
+              </ul>
+            </article>
+
+            <article class="cat-card">
+              <header>
+                <h3>规划</h3>
+                <span class="cat-count">3</span>
+              </header>
+              <ul>
+                <li><code>EnterPlanMode</code></li>
+                <li><code>ExitPlanModeV2</code></li>
+                <li><code>VerifyPlanExecution</code></li>
+              </ul>
+            </article>
+
+            <article class="cat-card">
+              <header>
+                <h3>Web / MCP</h3>
+                <span class="cat-count">4</span>
+              </header>
+              <ul>
+                <li><code>WebFetch</code></li>
+                <li><code>WebSearch</code></li>
+                <li><code>MCP</code></li>
+                <li><code>McpAuth</code></li>
+              </ul>
+            </article>
+
+            <article class="cat-card">
+              <header>
+                <h3>调度</h3>
+                <span class="cat-count">3</span>
+              </header>
+              <ul>
+                <li><code>CronCreate</code></li>
+                <li><code>CronDelete</code></li>
+                <li><code>CronList</code></li>
+              </ul>
+            </article>
+
+            <article class="cat-card">
+              <header>
+                <h3>开发体验</h3>
+                <span class="cat-count">5</span>
+              </header>
+              <ul>
+                <li><code>LSP</code></li>
+                <li><code>Config</code></li>
+                <li><code>Skill</code></li>
+                <li><code>EnterWorktree</code></li>
+                <li><code>ExitWorktree</code></li>
+              </ul>
+            </article>
+
+            <article class="cat-card cat-card-other">
+              <header>
+                <h3>其他</h3>
+                <span class="cat-count">32+</span>
+              </header>
+              <p>Monitor、PushNotification、TodoWrite、SubAgentTrigger、Memory、Knowledge、URL、Voice、Verification、Compact … 60 个工具的完整列表见仓库。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- PERMISSIONS -->
+      <section id="permissions" class="section section-alt">
+        <div class="container">
+          <p class="eyebrow">PERMISSION MODEL</p>
+          <h2>多层权限系统</h2>
+          <p class="section-lede">Claude Code 把"AI 能在你机器上做什么"做成了一个分层、可配置、可中断的决策模型。</p>
+
+          <div class="perm-modes">
+            <article class="perm-card">
+              <h3>default</h3>
+              <p>每次工具调用都征求用户同意。安全网最强，节奏最慢。</p>
+            </article>
+            <article class="perm-card">
+              <h3>acceptEdits</h3>
+              <p>编辑类操作（FileEdit / FileWrite）自动允许，仍拦截 Shell 等高风险工具。</p>
+            </article>
+            <article class="perm-card perm-card-warning">
+              <h3>bypassPermissions</h3>
+              <p>所有工具自动允许。仅在沙箱、CI 等隔离环境下使用。</p>
+            </article>
+            <article class="perm-card">
+              <h3>plan</h3>
+              <p>只读模式。模型可以分析、规划，但禁止任何修改性操作。</p>
+            </article>
+            <article class="perm-card">
+              <h3>autoAccept</h3>
+              <p>auto-mode 下临时进入：批准条件由配置规则决定，可配合 hooks 做精细控制。</p>
+            </article>
+            <article class="perm-card">
+              <h3>readOnly</h3>
+              <p>面向 sub-agent 的进一步收紧：只允许读类工具调用，子代理不能写盘。</p>
+            </article>
+          </div>
+
+          <div class="perm-flow">
+            <h3>权限决策流水线</h3>
+            <ol>
+              <li>工具的 <code>needsPermissions()</code> 判断是否需要询问</li>
+              <li>查询当前会话的 permission mode + 已存配置规则</li>
+              <li>命中规则 → 直接放行 / 拒绝；未命中 → 进入用户审批 UI</li>
+              <li>用户决定后（Allow / Allow & Remember / Deny）持久化或一次性应用</li>
+              <li>hooks 系统可以在任意阶段拦截、改写、终止</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <!-- MULTI-AGENT -->
+      <section id="multi-agent" class="section">
+        <div class="container">
+          <p class="eyebrow">MULTI-AGENT</p>
+          <h2>子代理与协调</h2>
+          <p class="section-lede">主 agent 不是孤军奋战。<code>Agent</code> 工具能 fork 出独立上下文的子代理，用于并行探索、独立审查、长任务分发。</p>
+
+          <div class="agent-grid">
+            <article class="agent-card">
+              <h3>Agent Tool</h3>
+              <p>主 agent 把"找文件 / 写代码 / 跑命令"等任务委派给子代理。子代理拥有独立 context window，结果以单条消息回流。</p>
+            </article>
+            <article class="agent-card">
+              <h3>Subagent Types</h3>
+              <p>内置类型：Explore（搜索）、Plan（架构设计）、Code Reviewer（独立评审）等。每种 type 有专门的 system prompt + 工具集。</p>
+            </article>
+            <article class="agent-card">
+              <h3>Background Agents</h3>
+              <p>BG_SESSIONS 启用后，可用 <code>--bg</code> 启动后台会话，<code>ps / logs / attach / kill</code> 命令管理。适合长任务。</p>
+            </article>
+            <article class="agent-card">
+              <h3>COORDINATOR_MODE</h3>
+              <p>多 worker 编排模式。一个 coordinator 拆分任务、分发给多个 worker，最后 merge 结果。</p>
+            </article>
+            <article class="agent-card">
+              <h3>Fork Render</h3>
+              <p>UI 层支持 fork 消息渲染：从某条历史消息开新分支继续对话，便于实验性提示。</p>
+            </article>
+            <article class="agent-card">
+              <h3>ACP 协议</h3>
+              <p>Agent Client Protocol：让外部 agent 通过 WebSocket 接入，把 Claude Code 当成 backend 使用。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONTEXT -->
+      <section id="context" class="section section-alt">
+        <div class="container">
+          <p class="eyebrow">CONTEXT MANAGEMENT</p>
+          <h2>上下文管理</h2>
+          <p class="section-lede">长会话最大的敌人是 token 上限。Claude Code 的上下文管理由四块协作完成：注入、压缩、记忆、缓存。</p>
+
+          <div class="ctx-grid">
+            <article class="ctx-card">
+              <h3>系统提示注入</h3>
+              <ul>
+                <li>git status &amp; branch</li>
+                <li>项目级 CLAUDE.md（全层级合并）</li>
+                <li>用户级 ~/.claude/CLAUDE.md</li>
+                <li>当前时间、CWD、平台信息</li>
+              </ul>
+            </article>
+            <article class="ctx-card">
+              <h3>自动压缩</h3>
+              <p>token 占用接近上限时触发：保留最近若干 turn + 摘要早期消息。<code>HISTORY_SNIP</code> feature 提供更细粒度的裁剪。</p>
+            </article>
+            <article class="ctx-card">
+              <h3>记忆系统</h3>
+              <p><code>EXTRACT_MEMORIES</code> 在每个 turn 结束抽取关键事实写入 memory。<code>LODESTONE</code> 做向量召回，避免全量带入。</p>
+            </article>
+            <article class="ctx-card">
+              <h3>Prompt Cache</h3>
+              <p>系统提示、工具定义、稳定的早期消息打 cache 标记。每次请求后自动检测命中率，低于阈值会黄色警告。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- DESIGN -->
+      <section id="design" class="section">
+        <div class="container">
+          <p class="eyebrow">DESIGN PRINCIPLES</p>
+          <h2>设计思想</h2>
+          <p class="section-lede">从源码反推 Claude Code 团队的几条工程取舍。</p>
+
+          <div class="design-list">
+            <article class="design-row">
+              <h3>1. 终端是一等公民</h3>
+              <p>选 Ink 而非 Web UI，意味着在 React 编程模型下处理终端的所有怪癖：宽字符、ANSI、键盘事件、resize。换来的是和现代 Web 开发完全一致的开发体验，并且能跑在任何 SSH 环境里。</p>
+            </article>
+            <article class="design-row">
+              <h3>2. 工具是显式的、可审计的</h3>
+              <p>每个工具都是一个独立模块：schema、permission、UI 渲染、result formatter 全在一处。新增工具不需要改主循环，主循环也不知道工具的具体行为。这套约定让 AI 行为可被人类逐步审查。</p>
+            </article>
+            <article class="design-row">
+              <h3>3. 流式优于批量</h3>
+              <p>API、工具结果、UI 更新全部走流。streaming 不只是"打字效果"——它是 Agent Loop 中实现"早停"、"中断"、"渐进决策"的基础。</p>
+            </article>
+            <article class="design-row">
+              <h3>4. 兼容层是适配器，不是分支</h3>
+              <p>OpenAI / Gemini / Grok 三套兼容层都把第三方协议转成 Anthropic 内部格式，下游代码完全不改。新增协议只加适配器，不动核心。</p>
+            </article>
+            <article class="design-row">
+              <h3>5. Feature Flag 优于 if-else</h3>
+              <p>33 个 feature flag 由 <code>bun:bundle</code> 在构建期内联，不影响运行时性能。实验功能与稳定路径并存，关闭的功能完全不进产物。</p>
+            </article>
+            <article class="design-row">
+              <h3>6. 文档即源码注释</h3>
+              <p>仓库里有大量 <code>docs/features/*.mdx</code> 与代码同步演进。新功能进 PR 时往往附带 200+ 行调研文档——这是 AI 协作时代的"白皮书"工作流。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-row">
+        <p>
+          Reverse-engineered analysis of <a href="https://github.com/anthropics/claude-code" target="_blank" rel="noopener">anthropics/claude-code</a>.
+          源码：<a href="https://github.com/tangivis/claude-code" target="_blank" rel="noopener">tangivis/claude-code</a>。
+        </p>
+        <p class="footer-mini">本页内容根据公开源码与官方文档整理，与 Anthropic 无官方关联。</p>
+      </div>
+    </footer>
+    <script src="./script.js" defer></script>
+  </body>
+</html>
