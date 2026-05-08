@@ -27,6 +27,42 @@ class DebugLogger implements Logger {
   }
 }
 
+// ---------------------------------------------------------------------------
+// JXA-based TCC permission probes (fallback when native .node module absent)
+// ---------------------------------------------------------------------------
+
+/** Probe accessibility by asking System Events for a process list. */
+function checkAccessibilityJXA(): boolean {
+  try {
+    const result = Bun.spawnSync({
+      cmd: [
+        'osascript',
+        '-e',
+        'tell application "System Events" to get name of every process whose background only is false',
+      ],
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    return result.exitCode === 0
+  } catch {
+    return false
+  }
+}
+
+/** Probe screen recording by attempting a 1x1 screencapture. */
+function checkScreenRecordingJXA(): boolean {
+  try {
+    const result = Bun.spawnSync({
+      cmd: ['screencapture', '-x', '-R', '0,0,1,1', '/dev/null'],
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    return result.exitCode === 0
+  } catch {
+    return false
+  }
+}
+
 let cached: ComputerUseHostAdapter | undefined
 
 /**
@@ -46,16 +82,20 @@ export function getComputerUseHostAdapter(): ComputerUseHostAdapter {
     }),
     ensureOsPermissions: async () => {
       if (process.platform !== 'darwin') return { granted: true }
-      const cu = requireComputerUseSwift() as any
-      // Native .node module exposes tcc; cross-platform JS backend does not.
-      // When tcc is absent (JS backend on macOS), we cannot programmatically
-      // check TCC status — returning granted:false would create a deadlock
-      // (recheck also fails, user can never pass).  The JS backend uses
-      // osascript/screencapture which trigger OS-level permission prompts
-      // themselves, so the OS provides the safety net instead.
-      if (!cu.tcc) return { granted: true }
-      const accessibility = cu.tcc.checkAccessibility()
-      const screenRecording = cu.tcc.checkScreenRecording()
+      const cu = requireComputerUseSwift()
+      const tcc = (cu as any).tcc
+      // Native Swift .node module provides tcc.checkAccessibility/checkScreenRecording.
+      // When absent (decompiled/reverse-engineered build), fall back to JXA probes.
+      if (tcc) {
+        const accessibility = tcc.checkAccessibility()
+        const screenRecording = tcc.checkScreenRecording()
+        return accessibility && screenRecording
+          ? { granted: true }
+          : { granted: false, accessibility, screenRecording }
+      }
+      // JXA fallback: try to query System Events (accessibility) and screencapture (screen recording).
+      const accessibility = checkAccessibilityJXA()
+      const screenRecording = checkScreenRecordingJXA()
       return accessibility && screenRecording
         ? { granted: true }
         : { granted: false, accessibility, screenRecording }

@@ -13,7 +13,7 @@ import type {
   SDKRateLimitInfo,
 } from 'src/entrypoints/agentSdkTypes.js'
 import type { ClaudeAILimits } from 'src/services/claudeAiLimits.js'
-import { EXIT_PLAN_MODE_V2_TOOL_NAME } from 'src/tools/ExitPlanModeTool/constants.js'
+import { EXIT_PLAN_MODE_V2_TOOL_NAME } from '@claude-code-best/builtin-tools/tools/ExitPlanModeTool/constants.js'
 import type {
   AssistantMessage,
   CompactMetadata,
@@ -48,9 +48,8 @@ export function toInternalMessages(
             uuid: message.uuid ?? randomUUID(),
             timestamp: message.timestamp ?? new Date().toISOString(),
             isMeta: message.isSynthetic,
-          } as Message,
+          } as unknown as Message,
         ]
-      case 'system':
         // Handle compact boundary messages
         if (message.subtype === 'compact_boundary') {
           const compactMsg = message
@@ -80,7 +79,9 @@ type SDKCompactMetadata = SDKCompactBoundaryMessage['compact_metadata']
 export function toSDKCompactMetadata(
   meta: CompactMetadata,
 ): SDKCompactMetadata {
-  const seg = meta.preservedSegment as { headUuid: UUID; anchorUuid: UUID; tailUuid: UUID } | undefined
+  const seg = meta.preservedSegment as
+    | { headUuid: UUID; anchorUuid: UUID; tailUuid: UUID }
+    | undefined
   return {
     trigger: meta.trigger,
     pre_tokens: meta.preTokens,
@@ -100,7 +101,16 @@ export function toSDKCompactMetadata(
 export function fromSDKCompactMetadata(
   meta: SDKCompactMetadata,
 ): CompactMetadata {
-  const m = meta as { preserved_segment?: { head_uuid: string; anchor_uuid: string; tail_uuid: string }; trigger?: string; pre_tokens?: number; [key: string]: unknown }
+  const m = meta as {
+    preserved_segment?: {
+      head_uuid: string
+      anchor_uuid: string
+      tail_uuid: string
+    }
+    trigger?: string
+    pre_tokens?: number
+    [key: string]: unknown
+  }
   const seg = m.preserved_segment
   return {
     trigger: m.trigger,
@@ -122,7 +132,9 @@ export function toSDKMessages(messages: Message[]): SDKMessage[] {
         return [
           {
             type: 'assistant',
-            message: normalizeAssistantMessageForSDK(message as AssistantMessage),
+            message: normalizeAssistantMessageForSDK(
+              message as AssistantMessage,
+            ),
             session_id: getSessionId(),
             parent_tool_use_id: null,
             uuid: message.uuid,
@@ -156,7 +168,9 @@ export function toSDKMessages(messages: Message[]): SDKMessage[] {
               subtype: 'compact_boundary' as const,
               session_id: getSessionId(),
               uuid: message.uuid,
-              compact_metadata: toSDKCompactMetadata(message.compactMetadata as CompactMetadata),
+              compact_metadata: toSDKCompactMetadata(
+                message.compactMetadata as CompactMetadata,
+              ),
             },
           ]
         }
@@ -166,8 +180,12 @@ export function toSDKMessages(messages: Message[]): SDKMessage[] {
         // not leak to the RC web UI.
         if (
           message.subtype === 'local_command' &&
-          ((message.content as string).includes(`<${LOCAL_COMMAND_STDOUT_TAG}>`) ||
-            (message.content as string).includes(`<${LOCAL_COMMAND_STDERR_TAG}>`))
+          ((message.content as string).includes(
+            `<${LOCAL_COMMAND_STDOUT_TAG}>`,
+          ) ||
+            (message.content as string).includes(
+              `<${LOCAL_COMMAND_STDERR_TAG}>`,
+            ))
         ) {
           return [
             localCommandOutputToSDKAssistantMessage(
@@ -272,7 +290,7 @@ function normalizeAssistantMessageForSDK(
 
   const normalizedContent = content.map((block): BetaContentBlock => {
     if (block.type !== 'tool_use') {
-      return block
+      return block as unknown as BetaContentBlock
     }
 
     if (block.name === EXIT_PLAN_MODE_V2_TOOL_NAME) {

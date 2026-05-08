@@ -25,6 +25,7 @@ import ide from './commands/ide/index.js'
 import init from './commands/init.js'
 import initVerifiers from './commands/init-verifiers.js'
 import keybindings from './commands/keybindings/index.js'
+import lang from './commands/lang/index.js'
 import login from './commands/login/index.js'
 import logout from './commands/logout/index.js'
 import installGitHubApp from './commands/install-github-app/index.js'
@@ -73,12 +74,17 @@ const assistantCommand = feature('KAIROS')
 const bridge = feature('BRIDGE_MODE')
   ? require('./commands/bridge/index.js').default
   : null
-const remoteControlServerCommand =
-  feature('DAEMON') && feature('BRIDGE_MODE')
-    ? require('./commands/remoteControlServer/index.js').default
-    : null
+const remoteControlServerCommand = feature('BRIDGE_MODE')
+  ? require('./commands/remoteControlServer/index.js').default
+  : null
 const voiceCommand = feature('VOICE_MODE')
   ? require('./commands/voice/index.js').default
+  : null
+const monitorCmd = feature('MONITOR_TOOL')
+  ? require('./commands/monitor.js').default
+  : null
+const coordinatorCmd = feature('COORDINATOR_MODE')
+  ? require('./commands/coordinator.js').default
   : null
 const forceSnip = feature('HISTORY_SNIP')
   ? require('./commands/force-snip.js').default
@@ -105,10 +111,38 @@ const ultraplan = feature('ULTRAPLAN')
   ? require('./commands/ultraplan.js').default
   : null
 const torch = feature('TORCH') ? require('./commands/torch.js').default : null
+const daemonCmd =
+  feature('DAEMON') || feature('BG_SESSIONS')
+    ? require('./commands/daemon/index.js').default
+    : null
+const jobCmd = feature('TEMPLATES')
+  ? require('./commands/job/index.js').default
+  : null
 const peersCmd = feature('UDS_INBOX')
   ? (
       require('./commands/peers/index.js') as typeof import('./commands/peers/index.js')
     ).default
+  : null
+const attachCmd = feature('UDS_INBOX')
+  ? require('./commands/attach/index.js').default
+  : null
+const detachCmd = feature('UDS_INBOX')
+  ? require('./commands/detach/index.js').default
+  : null
+const sendCmd = feature('UDS_INBOX')
+  ? require('./commands/send/index.js').default
+  : null
+const pipesCmd = feature('UDS_INBOX')
+  ? require('./commands/pipes/index.js').default
+  : null
+const pipeStatusCmd = feature('UDS_INBOX')
+  ? require('./commands/pipe-status/index.js').default
+  : null
+const historyCmd = feature('UDS_INBOX')
+  ? require('./commands/history/index.js').default
+  : null
+const claimMainCmd = feature('UDS_INBOX')
+  ? require('./commands/claim-main/index.js').default
   : null
 const forkCmd = feature('FORK_SUBAGENT')
   ? (
@@ -118,6 +152,11 @@ const forkCmd = feature('FORK_SUBAGENT')
 const buddy = feature('BUDDY')
   ? (
       require('./commands/buddy/index.js') as typeof import('./commands/buddy/index.js')
+    ).default
+  : null
+const poor = feature('POOR')
+  ? (
+      require('./commands/poor/index.js') as typeof import('./commands/poor/index.js')
     ).default
   : null
 /* eslint-enable @typescript-eslint/no-require-imports */
@@ -140,6 +179,8 @@ import mockLimits from './commands/mock-limits/index.js'
 import bridgeKick from './commands/bridge-kick.js'
 import version from './commands/version.js'
 import summary from './commands/summary/index.js'
+import skillLearning from './commands/skill-learning/index.js'
+import skillSearch from './commands/skill-search/index.js'
 import {
   resetLimits,
   resetLimitsNonInteractive,
@@ -150,6 +191,8 @@ import sandboxToggle from './commands/sandbox-toggle/index.js'
 import chrome from './commands/chrome/index.js'
 import stickers from './commands/stickers/index.js'
 import advisor from './commands/advisor.js'
+import autonomy from './commands/autonomy.js'
+import provider from './commands/provider.js'
 import { logError } from './utils/log.js'
 import { toError } from './utils/errors.js'
 import { logForDebugging } from './utils/debug.js'
@@ -232,17 +275,14 @@ export const INTERNAL_ONLY_COMMANDS = [
   goodClaude,
   issue,
   initVerifiers,
-  ...(forceSnip ? [forceSnip] : []),
   mockLimits,
   bridgeKick,
   version,
-  ...(ultraplan ? [ultraplan] : []),
   ...(subscribePr ? [subscribePr] : []),
   resetLimits,
   resetLimitsNonInteractive,
   onboarding,
   share,
-  summary,
   teleport,
   antTrace,
   perfIssue,
@@ -258,6 +298,8 @@ export const INTERNAL_ONLY_COMMANDS = [
 const COMMANDS = memoize((): Command[] => [
   addDir,
   advisor,
+  autonomy,
+  provider,
   agents,
   branch,
   btw,
@@ -282,6 +324,7 @@ const COMMANDS = memoize((): Command[] => [
   ide,
   init,
   keybindings,
+  lang,
   installGitHubApp,
   installSlackApp,
   mcp,
@@ -320,7 +363,10 @@ const COMMANDS = memoize((): Command[] => [
   ...(webCmd ? [webCmd] : []),
   ...(forkCmd ? [forkCmd] : []),
   ...(buddy ? [buddy] : []),
+  ...(poor ? [poor] : []),
   ...(proactive ? [proactive] : []),
+  ...(monitorCmd ? [monitorCmd] : []),
+  ...(coordinatorCmd ? [coordinatorCmd] : []),
   ...(briefCommand ? [briefCommand] : []),
   ...(assistantCommand ? [assistantCommand] : []),
   ...(bridge ? [bridge] : []),
@@ -337,9 +383,23 @@ const COMMANDS = memoize((): Command[] => [
   ...(!isUsing3PServices() ? [logout, login()] : []),
   passes,
   ...(peersCmd ? [peersCmd] : []),
+  ...(attachCmd ? [attachCmd] : []),
+  ...(detachCmd ? [detachCmd] : []),
+  ...(sendCmd ? [sendCmd] : []),
+  ...(pipesCmd ? [pipesCmd] : []),
+  ...(pipeStatusCmd ? [pipeStatusCmd] : []),
+  ...(historyCmd ? [historyCmd] : []),
+  ...(claimMainCmd ? [claimMainCmd] : []),
   tasks,
   ...(workflowsCmd ? [workflowsCmd] : []),
+  ...(ultraplan ? [ultraplan] : []),
   ...(torch ? [torch] : []),
+  ...(daemonCmd ? [daemonCmd] : []),
+  ...(jobCmd ? [jobCmd] : []),
+  ...(forceSnip ? [forceSnip] : []),
+  summary,
+  skillLearning,
+  skillSearch,
   ...(process.env.USER_TYPE === 'ant' && !process.env.IS_DEMO
     ? INTERNAL_ONLY_COMMANDS
     : []),
@@ -400,7 +460,7 @@ async function getSkills(cwd: string): Promise<{
 /* eslint-disable @typescript-eslint/no-require-imports */
 const getWorkflowCommands = feature('WORKFLOW_SCRIPTS')
   ? (
-      require('./tools/WorkflowTool/createWorkflowCommand.js') as typeof import('./tools/WorkflowTool/createWorkflowCommand.js')
+      require('@claude-code-best/builtin-tools/tools/WorkflowTool/createWorkflowCommand.js') as typeof import('@claude-code-best/builtin-tools/tools/WorkflowTool/createWorkflowCommand.js')
     ).getWorkflowCommands
   : null
 /* eslint-enable @typescript-eslint/no-require-imports */
@@ -461,8 +521,8 @@ const loadAllCommands = memoize(async (cwd: string): Promise<Command[]> => {
     ...bundledSkills,
     ...builtinPluginSkills,
     ...skillDirCommands,
-    ...workflowCommands,
-    ...pluginCommands,
+    ...(workflowCommands as Command[]),
+    ...(pluginCommands as Command[]),
     ...pluginSkills,
     ...COMMANDS(),
   ]
@@ -630,6 +690,7 @@ export const REMOTE_SAFE_COMMANDS: Set<Command> = new Set([
   btw, // Quick note
   feedback, // Send feedback
   plan, // Plan mode toggle
+  proactive, // Toggle proactive mode
   keybindings, // Keybinding management
   statusline, // Status line toggle
   stickers, // Stickers
@@ -670,9 +731,18 @@ export const BRIDGE_SAFE_COMMANDS: Set<Command> = new Set(
  * BRIDGE_SAFE_COMMANDS; 'local-jsx' commands render Ink UI and stay blocked.
  */
 export function isBridgeSafeCommand(cmd: Command): boolean {
-  if (cmd.type === 'local-jsx') return false
+  if (cmd.type === 'local-jsx') return cmd.bridgeSafe === true
   if (cmd.type === 'prompt') return true
-  return BRIDGE_SAFE_COMMANDS.has(cmd)
+  return cmd.bridgeSafe === true || BRIDGE_SAFE_COMMANDS.has(cmd)
+}
+
+export function getBridgeCommandSafety(
+  cmd: Command,
+  args: string,
+): { ok: true } | { ok: false; reason?: string } {
+  if (!isBridgeSafeCommand(cmd)) return { ok: false }
+  const reason = cmd.getBridgeInvocationError?.(args)
+  return reason ? { ok: false, reason } : { ok: true }
 }
 
 /**

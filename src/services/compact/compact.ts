@@ -14,12 +14,12 @@ import type { QuerySource } from '../../constants/querySource.js'
 import type { CanUseToolFn } from '../../hooks/useCanUseTool.js'
 import type { Tool, ToolUseContext } from '../../Tool.js'
 import type { LocalAgentTaskState } from '../../tasks/LocalAgentTask/LocalAgentTask.js'
-import { FileReadTool } from '../../tools/FileReadTool/FileReadTool.js'
+import { FileReadTool } from '@claude-code-best/builtin-tools/tools/FileReadTool/FileReadTool.js'
 import {
   FILE_READ_TOOL_NAME,
   FILE_UNCHANGED_STUB,
-} from '../../tools/FileReadTool/prompt.js'
-import { ToolSearchTool } from '../../tools/ToolSearchTool/ToolSearchTool.js'
+} from '@claude-code-best/builtin-tools/tools/FileReadTool/prompt.js'
+import { ToolSearchTool } from '@claude-code-best/builtin-tools/tools/ToolSearchTool/ToolSearchTool.js'
 import type { AgentId } from '../../types/ids.js'
 import type {
   AssistantMessage,
@@ -39,6 +39,7 @@ import {
   getAgentListingDeltaAttachment,
   getDeferredToolsDeltaAttachment,
   getMcpInstructionsDeltaAttachment,
+  type Attachment,
 } from '../../utils/attachments.js'
 import { getMemoryPath } from '../../utils/config.js'
 import { COMPACT_MAX_OUTPUT_TOKENS } from '../../utils/context.js'
@@ -114,6 +115,7 @@ import {
   roughTokenCountEstimation,
   roughTokenCountEstimationForMessages,
 } from '../tokenEstimation.js'
+import type { SDKStatus } from '../../entrypoints/agentSdkTypes.js'
 import { groupMessagesByApiRound } from './grouping.js'
 import {
   getCompactPrompt,
@@ -150,7 +152,7 @@ export function stripImagesFromMessages(messages: Message[]): Message[] {
       return message
     }
 
-    const content = message.message.content
+    const content = message.message!.content
     if (!Array.isArray(content)) {
       return message
     }
@@ -216,8 +218,8 @@ export function stripReinjectedAttachments(messages: Message[]): Message[] {
       m =>
         !(
           m.type === 'attachment' &&
-          (m.attachment.type === 'skill_discovery' ||
-            m.attachment.type === 'skill_listing')
+          (m.attachment!.type === 'skill_discovery' ||
+            m.attachment!.type === 'skill_listing')
         ),
     )
   }
@@ -225,7 +227,7 @@ export function stripReinjectedAttachments(messages: Message[]): Message[] {
 }
 
 export const ERROR_MESSAGE_NOT_ENOUGH_MESSAGES =
-  'Not enough messages to compact.'
+  'Not enough messages to compact. Send a few more messages first, then try again.'
 const MAX_PTL_RETRIES = 3
 const PTL_RETRY_MARKER = '[earlier conversation truncated for compaction retry]'
 
@@ -251,8 +253,8 @@ export function truncateHeadForPTLRetry(
   // (drops only the marker, re-adds it, zero progress on retry 2+).
   const input =
     messages[0]?.type === 'user' &&
-    messages[0].isMeta &&
-    messages[0].message.content === PTL_RETRY_MARKER
+    messages[0]?.isMeta &&
+    messages[0]?.message?.content === PTL_RETRY_MARKER
       ? messages.slice(1)
       : messages
 
@@ -265,7 +267,9 @@ export function truncateHeadForPTLRetry(
     let acc = 0
     dropCount = 0
     for (const g of groups) {
-      acc += roughTokenCountEstimationForMessages(g as Parameters<typeof roughTokenCountEstimationForMessages>[0])
+      acc += roughTokenCountEstimationForMessages(
+        g as Parameters<typeof roughTokenCountEstimationForMessages>[0],
+      )
       dropCount++
       if (acc >= tokenGap) break
     }
@@ -293,7 +297,7 @@ export function truncateHeadForPTLRetry(
 }
 
 export const ERROR_MESSAGE_PROMPT_TOO_LONG =
-  'Conversation too long. Press esc twice to go up a few messages and try again.'
+  'Conversation too long to summarize. Try /compact to manually clear conversation history, or start a new session with /clear.'
 export const ERROR_MESSAGE_USER_ABORT = 'API Error: Request was aborted.'
 export const ERROR_MESSAGE_INCOMPLETE_RESPONSE =
   'Compaction interrupted · This may be due to network issues — please try again.'
@@ -330,13 +334,31 @@ export type RecompactionInfo = {
  * Order: boundaryMarker, summaryMessages, messagesToKeep, attachments, hookResults
  */
 export function buildPostCompactMessages(result: CompactionResult): Message[] {
-  return [
-    result.boundaryMarker,
-    ...result.summaryMessages,
-    ...(result.messagesToKeep ?? []),
-    ...result.attachments,
-    ...result.hookResults,
-  ]
+  return ([result.boundaryMarker] as Message[]).concat(
+    result.summaryMessages,
+    stripToolUseResults(result.messagesToKeep),
+    result.attachments,
+    result.hookResults,
+  )
+}
+
+/** Release large tool result payloads from kept messages after compaction.
+ *  toolUseResult is only used for UI rendering, not API calls. */
+function stripToolUseResults(messages: Message[] | undefined): Message[] {
+  if (!messages) return []
+  return messages.map(msg => {
+    if (
+      msg.type === 'user' &&
+      'toolUseResult' in msg &&
+      msg.toolUseResult !== undefined
+    ) {
+      const { toolUseResult, ...rest } = msg as Message & {
+        toolUseResult: unknown
+      }
+      return rest as Message
+    }
+    return msg
+  })
 }
 
 /**
@@ -517,7 +539,7 @@ export async function compactConversation(
     }
 
     // Store the current file state before clearing
-    const preCompactReadFileState = cacheToObject(context.readFileState)
+    let preCompactReadFileState = cacheToObject(context.readFileState)
 
     // Clear the cache
     context.readFileState.clear()
@@ -539,6 +561,9 @@ export async function compactConversation(
       ),
       createAsyncAgentAttachmentsIfNeeded(context),
     ])
+    // Release the readFileState snapshot — it can hold 25+ MB of file content
+    preCompactReadFileState =
+      undefined as unknown as typeof preCompactReadFileState
 
     const postCompactFileAttachments: AttachmentMessage[] = [
       ...fileAttachments,
@@ -645,6 +670,8 @@ export async function compactConversation(
 
     // Extract compaction API usage metrics
     const compactionUsage = getTokenUsage(summaryResponse)
+    // Release the full API response — it holds content blocks + usage metadata
+    summaryResponse = undefined as unknown as typeof summaryResponse
 
     const querySourceForEvent =
       recompactionInfo?.querySource ?? context.options.querySource ?? 'unknown'
@@ -760,7 +787,7 @@ export async function compactConversation(
     context.setStreamMode?.('requesting')
     context.setResponseLength?.(() => 0)
     context.onCompactProgress?.({ type: 'compact_end' })
-    context.setSDKStatus?.(null)
+    context.setSDKStatus?.('' as SDKStatus)
   }
 }
 
@@ -918,7 +945,7 @@ export async function partialCompactConversation(
     }
 
     // Store the current file state before clearing
-    const preCompactReadFileState = cacheToObject(context.readFileState)
+    let preCompactReadFileState = cacheToObject(context.readFileState)
     context.readFileState.clear()
     context.loadedNestedMemoryPaths?.clear()
     // Intentionally NOT resetting sentSkillNames — see compactConversation()
@@ -933,6 +960,9 @@ export async function partialCompactConversation(
       ),
       createAsyncAgentAttachmentsIfNeeded(context),
     ])
+    // Release the readFileState snapshot — it can hold 25+ MB of file content
+    preCompactReadFileState =
+      undefined as unknown as typeof preCompactReadFileState
 
     const postCompactFileAttachments: AttachmentMessage[] = [
       ...fileAttachments,
@@ -988,6 +1018,8 @@ export async function partialCompactConversation(
       summaryResponse,
     ])
     const compactionUsage = getTokenUsage(summaryResponse)
+    // Release the full API response — it holds content blocks + usage metadata
+    summaryResponse = undefined as unknown as typeof summaryResponse
 
     logEvent('tengu_partial_compact', {
       preCompactTokenCount,
@@ -1103,7 +1135,7 @@ export async function partialCompactConversation(
     context.setStreamMode?.('requesting')
     context.setResponseLength?.(() => 0)
     context.onCompactProgress?.({ type: 'compact_end' })
-    context.setSDKStatus?.(null)
+    context.setSDKStatus?.('' as SDKStatus)
   }
 }
 
@@ -1324,14 +1356,25 @@ async function streamCompactSummary({
           agents: context.options.agentDefinitions.activeAgents,
           mcpTools: [],
           effortValue: appState.effortValue,
+          langfuseTrace: context.langfuseTrace,
         },
       })
       const streamIter = streamingGen[Symbol.asyncIterator]()
       let next = await streamIter.next()
 
       while (!next.done) {
-        const event = next.value as StreamEvent | AssistantMessage | SystemAPIErrorMessage
-        const streamEvent = event as { type: string; event: { type: string; content_block: { type: string }; delta: { type: string; text: string } } }
+        const event = next.value as
+          | StreamEvent
+          | AssistantMessage
+          | SystemAPIErrorMessage
+        const streamEvent = event as {
+          type: string
+          event: {
+            type: string
+            content_block: { type: string }
+            delta: { type: string; text: string }
+          }
+        }
 
         if (
           !hasStartedStreaming &&
@@ -1453,7 +1496,7 @@ export async function createPostCompactFileAttachments(
   )
 
   let usedTokens = 0
-  return results.filter((result): result is AttachmentMessage => {
+  return results.filter((result): result is AttachmentMessage<Attachment> => {
     if (result === null) {
       return false
     }
@@ -1613,10 +1656,10 @@ export async function createAsyncAgentAttachmentsIfNeeded(
 function collectReadToolFilePaths(messages: Message[]): Set<string> {
   const stubIds = new Set<string>()
   for (const message of messages) {
-    if (message.type !== 'user' || !Array.isArray(message.message.content)) {
+    if (message.type !== 'user' || !Array.isArray(message.message!.content)) {
       continue
     }
-    for (const block of message.message.content) {
+    for (const block of message.message!.content) {
       if (
         block.type === 'tool_result' &&
         typeof block.content === 'string' &&
@@ -1631,11 +1674,11 @@ function collectReadToolFilePaths(messages: Message[]): Set<string> {
   for (const message of messages) {
     if (
       message.type !== 'assistant' ||
-      !Array.isArray(message.message.content)
+      !Array.isArray(message.message!.content)
     ) {
       continue
     }
-    for (const block of message.message.content) {
+    for (const block of message.message!.content) {
       if (
         block.type !== 'tool_use' ||
         block.name !== FILE_READ_TOOL_NAME ||

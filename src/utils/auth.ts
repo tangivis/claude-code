@@ -118,7 +118,9 @@ export function isAnthropicAuthEnabled(): boolean {
     isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
     isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY) ||
     (settings as any).modelType === 'openai' ||
-    !!process.env.OPENAI_BASE_URL
+    (settings as any).modelType === 'gemini' ||
+    !!process.env.OPENAI_BASE_URL ||
+    !!process.env.GEMINI_BASE_URL
   const apiKeyHelper = settings.apiKeyHelper
   const hasExternalAuthToken =
     process.env.ANTHROPIC_AUTH_TOKEN ||
@@ -512,7 +514,6 @@ async function _runAndCache(
   } catch (e) {
     if (epoch !== _apiKeyHelperEpoch) return ' '
     const detail = e instanceof Error ? e.message : String(e)
-    // biome-ignore lint/suspicious/noConsole: user-configured script failed; must be visible without --debug
     console.error(chalk.red(`apiKeyHelper failed: ${detail}`))
     logForDebugging(`Error getting API key from apiKeyHelper: ${detail}`, {
       level: 'error',
@@ -688,7 +689,6 @@ export function refreshAwsAuth(awsAuthRefresh: string): Promise<boolean> {
           : chalk.red(
               'Error running awsAuthRefresh (in settings or ~/.claude.json):',
             )
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
         console.error(message)
         authStatusManager.endAuthentication(false)
         void resolve(false)
@@ -767,10 +767,8 @@ async function getAwsCredsFromCredentialExport(): Promise<{
         'Error getting AWS credentials from awsCredentialExport (in settings or ~/.claude.json):',
       )
       if (e instanceof Error) {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
         console.error(message, e.message)
       } else {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
         console.error(message, e)
       }
       return null
@@ -956,7 +954,6 @@ export function refreshGcpAuth(gcpAuthRefresh: string): Promise<boolean> {
           : chalk.red(
               'Error running gcpAuthRefresh (in settings or ~/.claude.json):',
             )
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
         console.error(message)
         authStatusManager.endAuthentication(false)
         void resolve(false)
@@ -1777,6 +1774,7 @@ export function getOtelHeadersFromHelper(): Record<string, string> {
   const debounceMs = parseInt(
     process.env.CLAUDE_CODE_OTEL_HEADERS_HELPER_DEBOUNCE_MS ||
       DEFAULT_OTEL_HEADERS_DEBOUNCE_MS.toString(),
+    10,
   )
   if (
     cachedOtelHeaders &&

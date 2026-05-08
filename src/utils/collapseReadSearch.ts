@@ -1,19 +1,19 @@
 import { feature } from 'bun:bundle'
 import type { UUID } from 'crypto'
 import { findToolByName, type Tools } from '../Tool.js'
-import { extractBashCommentLabel } from '../tools/BashTool/commentLabel.js'
-import { BASH_TOOL_NAME } from '../tools/BashTool/toolName.js'
-import { FILE_EDIT_TOOL_NAME } from '../tools/FileEditTool/constants.js'
-import { FILE_WRITE_TOOL_NAME } from '../tools/FileWriteTool/prompt.js'
-import { REPL_TOOL_NAME } from '../tools/REPLTool/constants.js'
-import { getReplPrimitiveTools } from '../tools/REPLTool/primitiveTools.js'
+import { extractBashCommentLabel } from '@claude-code-best/builtin-tools/tools/BashTool/commentLabel.js'
+import { BASH_TOOL_NAME } from '@claude-code-best/builtin-tools/tools/BashTool/toolName.js'
+import { FILE_EDIT_TOOL_NAME } from '@claude-code-best/builtin-tools/tools/FileEditTool/constants.js'
+import { FILE_WRITE_TOOL_NAME } from '@claude-code-best/builtin-tools/tools/FileWriteTool/prompt.js'
+import { REPL_TOOL_NAME } from '@claude-code-best/builtin-tools/tools/REPLTool/constants.js'
+import { getReplPrimitiveTools } from '@claude-code-best/builtin-tools/tools/REPLTool/primitiveTools.js'
 import {
   type BranchAction,
   type CommitKind,
   detectGitOperation,
   type PrAction,
-} from '../tools/shared/gitOperationTracking.js'
-import { TOOL_SEARCH_TOOL_NAME } from '../tools/ToolSearchTool/prompt.js'
+} from '@claude-code-best/builtin-tools/tools/shared/gitOperationTracking.js'
+import { TOOL_SEARCH_TOOL_NAME } from '@claude-code-best/builtin-tools/tools/ToolSearchTool/prompt.js'
 import type {
   CollapsedReadSearchGroup,
   CollapsibleMessage,
@@ -28,7 +28,9 @@ import type {
  * Safely get the first content item from a MessageContent value.
  * Returns undefined for string content or empty arrays.
  */
-function getFirstContentItem(content: MessageContent | undefined): ContentItem | undefined {
+function getFirstContentItem(
+  content: MessageContent | undefined,
+): ContentItem | undefined {
   if (!content || typeof content === 'string') return undefined
   return content[0]
 }
@@ -56,7 +58,7 @@ const teamMemOps = feature('TEAMMEM')
   : null
 const SNIP_TOOL_NAME = feature('HISTORY_SNIP')
   ? (
-      require('../tools/SnipTool/prompt.js') as typeof import('../tools/SnipTool/prompt.js')
+      require('@claude-code-best/builtin-tools/tools/SnipTool/prompt.js') as typeof import('@claude-code-best/builtin-tools/tools/SnipTool/prompt.js')
     ).SNIP_TOOL_NAME
   : null
 /* eslint-enable @typescript-eslint/no-require-imports */
@@ -325,16 +327,25 @@ function getCollapsibleToolInfo(
   if (msg.type === 'assistant') {
     const content = getFirstContentItem(msg.message?.content)
     if (!content) return null
-    const info = getSearchOrReadFromContent(content as { type: string; name?: string; input?: unknown }, tools)
+    const info = getSearchOrReadFromContent(
+      content as { type: string; name?: string; input?: unknown },
+      tools,
+    )
     if (info && content.type === 'tool_use') {
-      const toolUse = content as { type: 'tool_use'; name: string; input: unknown }
+      const toolUse = content as {
+        type: 'tool_use'
+        name: string
+        input: unknown
+      }
       return { name: toolUse.name, input: toolUse.input, ...info }
     }
   }
   if (msg.type === 'grouped_tool_use') {
     // For grouped tool uses, check the first message's input
     const firstContent = getFirstContentItem(msg.messages[0]?.message?.content)
-    const firstToolUse = firstContent as { type: string; input?: unknown } | undefined
+    const firstToolUse = firstContent as
+      | { type: string; input?: unknown }
+      | undefined
     const info = getSearchOrReadFromContent(
       firstToolUse
         ? { type: 'tool_use', name: msg.toolName, input: firstToolUse.input }
@@ -354,7 +365,11 @@ function getCollapsibleToolInfo(
 function isTextBreaker(msg: RenderableMessage): boolean {
   if (msg.type === 'assistant') {
     const content = getFirstContentItem(msg.message?.content)
-    if (content && content.type === 'text' && (content as { type: 'text'; text: string }).text.trim().length > 0) {
+    if (
+      content &&
+      content.type === 'text' &&
+      (content as { type: 'text'; text: string }).text.trim().length > 0
+    ) {
       return true
     }
   }
@@ -372,8 +387,13 @@ function isNonCollapsibleToolUse(
   if (msg.type === 'assistant') {
     const content = getFirstContentItem(msg.message?.content)
     if (
-      content && content.type === 'tool_use' &&
-      !isToolSearchOrRead((content as { name: string }).name, (content as { input: unknown }).input, tools)
+      content &&
+      content.type === 'tool_use' &&
+      !isToolSearchOrRead(
+        (content as { name: string }).name,
+        (content as { input: unknown }).input,
+        tools,
+      )
     ) {
       return true
     }
@@ -381,8 +401,13 @@ function isNonCollapsibleToolUse(
   if (msg.type === 'grouped_tool_use') {
     const firstContent = getFirstContentItem(msg.messages[0]?.message?.content)
     if (
-      firstContent && firstContent.type === 'tool_use' &&
-      !isToolSearchOrRead(msg.toolName, (firstContent as { input: unknown }).input, tools)
+      firstContent &&
+      firstContent.type === 'tool_use' &&
+      !isToolSearchOrRead(
+        msg.toolName,
+        (firstContent as { input: unknown }).input,
+        tools,
+      )
     ) {
       return true
     }
@@ -408,7 +433,10 @@ function shouldSkipMessage(msg: RenderableMessage): boolean {
   if (msg.type === 'assistant') {
     const content = getFirstContentItem(msg.message?.content)
     // Skip thinking blocks and other non-text, non-tool content
-    if (content && (content.type === 'thinking' || content.type === 'redacted_thinking')) {
+    if (
+      content &&
+      (content.type === 'thinking' || content.type === 'redacted_thinking')
+    ) {
       return true
     }
   }
@@ -433,15 +461,25 @@ function isCollapsibleToolUse(
   if (msg.type === 'assistant') {
     const content = getFirstContentItem(msg.message?.content)
     return (
-      content !== undefined && content.type === 'tool_use' &&
-      isToolSearchOrRead((content as { name: string }).name, (content as { input: unknown }).input, tools)
+      content !== undefined &&
+      content.type === 'tool_use' &&
+      isToolSearchOrRead(
+        (content as { name: string }).name,
+        (content as { input: unknown }).input,
+        tools,
+      )
     )
   }
   if (msg.type === 'grouped_tool_use') {
     const firstContent = getFirstContentItem(msg.messages[0]?.message?.content)
     return (
-      firstContent !== undefined && firstContent.type === 'tool_use' &&
-      isToolSearchOrRead(msg.toolName, (firstContent as { input: unknown }).input, tools)
+      firstContent !== undefined &&
+      firstContent.type === 'tool_use' &&
+      isToolSearchOrRead(
+        msg.toolName,
+        (firstContent as { input: unknown }).input,
+        tools,
+      )
     )
   }
   return false
@@ -552,7 +590,9 @@ function getFilePathsFromReadMessage(msg: RenderableMessage): string[] {
   if (msg.type === 'assistant') {
     const content = getFirstContentItem(msg.message?.content)
     if (content && content.type === 'tool_use') {
-      const input = (content as { input: unknown }).input as { file_path?: string } | undefined
+      const input = (content as { input: unknown }).input as
+        | { file_path?: string }
+        | undefined
       if (input?.file_path) {
         paths.push(input.file_path)
       }
@@ -561,7 +601,9 @@ function getFilePathsFromReadMessage(msg: RenderableMessage): string[] {
     for (const m of msg.messages) {
       const content = getFirstContentItem(m.message?.content)
       if (content && content.type === 'tool_use') {
-        const input = (content as { input: unknown }).input as { file_path?: string } | undefined
+        const input = (content as { input: unknown }).input as
+          | { file_path?: string }
+          | undefined
         if (input?.file_path) {
           paths.push(input.file_path)
         }
@@ -940,7 +982,7 @@ export function collapseReadSearchGroups(
       // suppresses the fallback). createCollapsedGroup adds .length to
       // memoryReadCount after the readCount subtraction instead.
       currentGroup.relevantMemories ??= []
-      currentGroup.relevantMemories.push(...msg.attachment.memories)
+      currentGroup.relevantMemories.push(...(msg.attachment.memories ?? []))
     } else if (shouldSkipMessage(msg)) {
       // Don't flush the group for skippable messages (thinking, attachments, system)
       // If a group is in progress, defer these messages to output after the collapsed group

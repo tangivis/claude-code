@@ -18,7 +18,7 @@ import { queryWithModel } from '../services/api/claude.js'
 import {
   AGENT_TOOL_NAME,
   LEGACY_AGENT_TOOL_NAME,
-} from '../tools/AgentTool/constants.js'
+} from '@claude-code-best/builtin-tools/tools/AgentTool/constants.js'
 import type { LogOption } from '../types/logs.js'
 import { getClaudeConfigHomeDir } from '../utils/envUtils.js'
 import { toError } from '../utils/errors.js'
@@ -895,7 +895,9 @@ async function summarizeTranscriptChunk(chunk: string): Promise<string> {
       },
     })
 
-    const text = extractTextContent(result.message.content as readonly { readonly type: string }[])
+    const text = extractTextContent(
+      result.message.content as readonly { readonly type: string }[],
+    )
     return text || chunk.slice(0, 2000)
   } catch {
     // On error, just return truncated chunk
@@ -1038,7 +1040,9 @@ RESPOND WITH ONLY A VALID JSON OBJECT matching this schema:
       },
     })
 
-    const text = extractTextContent(result.message.content as readonly { readonly type: string }[])
+    const text = extractTextContent(
+      result.message.content as readonly { readonly type: string }[],
+    )
 
     // Parse JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/)
@@ -1589,7 +1593,9 @@ async function generateSectionInsight(
       },
     })
 
-    const text = extractTextContent(result.message.content as readonly { readonly type: string }[])
+    const text = extractTextContent(
+      result.message.content as readonly { readonly type: string }[],
+    )
 
     if (text) {
       // Parse JSON from response
@@ -3058,7 +3064,6 @@ const usageReport: Command = {
 
       // Show collection message if collecting
       if (collectRemote && hasRemoteHosts) {
-        // biome-ignore lint/suspicious/noConsole: intentional
         console.error(
           `Collecting sessions from ${remoteHosts.length} homespace(s): ${remoteHosts.join(', ')}...`,
         )
