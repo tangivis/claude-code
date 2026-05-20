@@ -91,6 +91,7 @@ import type {
   ResolvedAppRequest,
   TeachStepRequest,
 } from './types.js'
+import { toLoggerDetail } from './types.js'
 
 /**
  * Finder is never hidden by the hide loop (hiding Finder kills the Desktop),
@@ -523,7 +524,7 @@ async function runInputActionGates(
           `visible in screenshots only, no clicks or typing.` +
           (isBrowser
             ? ' Use the Claude-in-Chrome MCP for browser interaction (tools ' +
-              'named `mcp__Claude_in_Chrome__*`; load via ToolSearch if ' +
+              'named `mcp__Claude_in_Chrome__*`; load via SearchExtraTools if ' +
               'deferred).'
             : ' No interaction is permitted; ask the user to take any ' +
               'actions in this app themselves.') +
@@ -1308,7 +1309,7 @@ function buildTierGuidanceMessage(tiered: TieredApp[]): string {
         `typing). You can read what's on screen but cannot navigate, click, ` +
         `or type into ${readBrowsers.length === 1 ? 'it' : 'them'}. For browser ` +
         `interaction, use the Claude-in-Chrome MCP (tools named ` +
-        `\`mcp__Claude_in_Chrome__*\`; load via ToolSearch if deferred).`,
+        `\`mcp__Claude_in_Chrome__*\`; load via SearchExtraTools if deferred).`,
     )
   }
 
@@ -4446,7 +4447,10 @@ export async function handleToolCall(
     // For ungated tools, the executor may have been mid-call; that's fine —
     // the result is still a tool error, never an implicit success.
     const msg = err instanceof Error ? err.message : String(err)
-    logger.error(`[${serverName}] tool=${name} threw: ${msg}`, err)
+    logger.error(
+      `[${serverName}] tool=${name} threw: ${msg}`,
+      toLoggerDetail(err),
+    )
     return errorResult(`Tool "${name}" failed: ${msg}`, 'executor_threw')
   }
 }

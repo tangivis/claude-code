@@ -99,11 +99,16 @@ export function useReplBridge(
   messagesRef.current = messages;
   const store = useAppStateStore();
   const { addNotification } = useNotifications();
-  const replBridgeEnabled = feature('BRIDGE_MODE') ? useAppState(s => s.replBridgeEnabled) : false;
-  const replBridgeConnected = feature('BRIDGE_MODE') ? useAppState(s => s.replBridgeConnected) : false;
-  const replBridgeSessionActive = feature('BRIDGE_MODE') ? useAppState(s => s.replBridgeSessionActive) : false;
-  const replBridgeOutboundOnly = feature('BRIDGE_MODE') ? useAppState(s => s.replBridgeOutboundOnly) : false;
-  const replBridgeInitialName = feature('BRIDGE_MODE') ? useAppState(s => s.replBridgeInitialName) : undefined;
+  const replBridgeEnabledRaw = useAppState(s => s.replBridgeEnabled);
+  const replBridgeEnabled = feature('BRIDGE_MODE') ? replBridgeEnabledRaw : false;
+  const replBridgeConnectedRaw = useAppState(s => s.replBridgeConnected);
+  const replBridgeConnected = feature('BRIDGE_MODE') ? replBridgeConnectedRaw : false;
+  const replBridgeSessionActiveRaw = useAppState(s => s.replBridgeSessionActive);
+  const replBridgeSessionActive = feature('BRIDGE_MODE') ? replBridgeSessionActiveRaw : false;
+  const replBridgeOutboundOnlyRaw = useAppState(s => s.replBridgeOutboundOnly);
+  const replBridgeOutboundOnly = feature('BRIDGE_MODE') ? replBridgeOutboundOnlyRaw : false;
+  const replBridgeInitialNameRaw = useAppState(s => s.replBridgeInitialName);
+  const replBridgeInitialName = feature('BRIDGE_MODE') ? replBridgeInitialNameRaw : undefined;
 
   // Initialize/teardown bridge when enabled state changes.
   // Passes current messages as initialMessages so the remote session
@@ -297,6 +302,7 @@ export function useReplBridge(
                 });
                 break;
               case 'connected': {
+                const wasSessionActive = store.getState().replBridgeSessionActive;
                 setAppState(prev => {
                   if (prev.replBridgeSessionActive) return prev;
                   return {
@@ -307,6 +313,16 @@ export function useReplBridge(
                     replBridgeError: undefined,
                   };
                 });
+                // Notify model about newly available bridge-dependent tools
+                if (!wasSessionActive) {
+                  setMessages(prev => [
+                    ...prev,
+                    createSystemMessage(
+                      'Remote Control 已连接。现在可以使用 PushNotification、SendUserFile、Brief 工具，请使用 SearchExtraTools 搜索发现。',
+                      'info',
+                    ),
+                  ]);
+                }
                 // Send system/init so remote clients (web/iOS/Android) get
                 // session metadata. REPL uses query() directly — never hits
                 // QueryEngine's SDKMessage layer — so this is the only path

@@ -59,7 +59,7 @@ export const DEFAULT_BUILD_FEATURES = [
   'DAEMON', // 守护进程模式，长驻 supervisor 管理后台 worker（非 GB 级主因）
   'ACP', // ACP 代理协议，支持外部 agent 接入
   'WORKFLOW_SCRIPTS', // 工作流脚本（.claude/workflows/ 中的 YAML/MD）
-  'HISTORY_SNIP', // 历史消息裁剪，压缩上下文窗口
+  // 'HISTORY_SNIP', // 已禁用：snip 功能暂时关闭
   // 'CONTEXT_COLLAPSE', // 已禁用：实现是空壳 stub，启用后会抑制 auto compact 导致上下文管理完全失效
   'MONITOR_TOOL', // Monitor 工具，流式监控后台进程输出
   // 'FORK_SUBAGENT',            // 已禁用：通过 Agent tool 的特殊方式实现了等效功能，无需再开
@@ -85,6 +85,7 @@ export const DEFAULT_BUILD_FEATURES = [
   // overflow risk, but Haiku-on-first-Chinese-query and disk-side
   // observation accumulation remain operator-discretion concerns.
   'EXPERIMENTAL_SKILL_SEARCH', // 技能搜索（bounded caches 已修复 overflow，内存问题已解决）
+  'EXPERIMENTAL_SEARCH_EXTRA_TOOLS', // 工具搜索预取管道（TF-IDF 索引 + inter-turn 异步预取）
   // 'SKILL_LEARNING',
   // P3: poor mode
   'POOR', // 穷鬼模式，跳过 extract_memories/prompt_suggestion 减少消耗
@@ -92,4 +93,6 @@ export const DEFAULT_BUILD_FEATURES = [
   // 'TEAMMEM',                  // 已禁用：依赖 COORDINATOR_MODE，邮箱文件无限增长
   // SSH Remote
   'SSH_REMOTE', // SSH 远程连接，本地 REPL + 远端工具执行
+  // Autofix PR
+  'AUTOFIX_PR', // /autofix-pr 命令（fork 引入；docs/jira/AUTOFIX-PR-001.md 承诺默认开启）
 ] as const
