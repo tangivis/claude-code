@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Claude Code 源码深度分析</title>
-    <meta name="description" content="深入 Anthropic 官方 CLI 工具的内部实现 — 从架构设计到 Agent Loop，从 60 个工具系统到多层权限模型，完整拆解一个工业级 AI 编程智能体是如何构建的。" />
+    <meta name="description" content="深入 Anthropic 官方 CLI 工具的内部实现 — 从架构设计到 Agent Loop，从 63 个工具系统到多层权限模型，完整拆解一个工业级 AI 编程智能体是如何构建的。" />
     <meta property="og:title" content="Claude Code 源码深度分析" />
     <meta property="og:description" content="从源码看 AI 编程智能体" />
     <meta property="og:type" content="website" />
@@ -44,15 +44,15 @@
             <span class="display-zh">从源码看 AI 编程智能体</span>
           </h1>
           <p class="lede">
-            深入 Anthropic 官方 CLI 工具的内部实现 — 从架构设计到 Agent Loop，从 60 个工具系统到多层权限模型，完整拆解一个工业级 AI 编程智能体是如何构建的。
+            深入 Anthropic 官方 CLI 工具的内部实现 — 从架构设计到 Agent Loop，从 63 个工具系统到多层权限模型，完整拆解一个工业级 AI 编程智能体是如何构建的。
           </p>
 
           <ul class="stats" role="list">
-            <li><span class="stat-num">60</span><span class="stat-label">内置工具</span></li>
-            <li><span class="stat-num">33</span><span class="stat-label">Feature Flags</span></li>
+            <li><span class="stat-num">63</span><span class="stat-label">内置工具</span></li>
+            <li><span class="stat-num">34</span><span class="stat-label">Feature Flags</span></li>
             <li><span class="stat-num">Bun</span><span class="stat-label">运行时</span></li>
             <li><span class="stat-num">7</span><span class="stat-label">模型提供商</span></li>
-            <li><span class="stat-num">v2.2.1</span><span class="stat-label">版本</span></li>
+            <li><span class="stat-num">v2.5.0</span><span class="stat-label">版本</span></li>
           </ul>
         </div>
       </section>
@@ -98,7 +98,7 @@
             <li class="flow-card">
               <span class="flow-tag">工具执行</span>
               <code>Tools</code>
-              <small>60 个工具</small>
+              <small>63 个工具</small>
             </li>
           </ol>
 
@@ -169,7 +169,7 @@
       <section id="tools" class="section">
         <div class="container">
           <p class="eyebrow">TOOL SYSTEM</p>
-          <h2>60 个内置工具</h2>
+          <h2>63 个内置工具</h2>
           <p class="section-lede">所有工具实现在 <code>packages/builtin-tools</code> 中，通过统一的 <code>Tool</code> 接口装载。每个工具自带 schema、permission 检查、UI 渲染组件。</p>
 
           <div class="tool-cats">
@@ -269,7 +269,7 @@
                 <h3>其他</h3>
                 <span class="cat-count">32+</span>
               </header>
-              <p>Monitor、PushNotification、TodoWrite、SubAgentTrigger、Memory、Knowledge、URL、Voice、Verification、Compact … 60 个工具的完整列表见仓库。</p>
+              <p>Monitor、PushNotification、TodoWrite、SubAgentTrigger、Memory、Knowledge、URL、Voice、Verification、Compact、ToolSearch、ExecuteExtraTool … 63 个工具的完整列表见仓库。</p>
             </article>
           </div>
         </div>
@@ -417,7 +417,7 @@
             </article>
             <article class="design-row">
               <h3>5. Feature Flag 优于 if-else</h3>
-              <p>33 个 feature flag 由 <code>bun:bundle</code> 在构建期内联，不影响运行时性能。实验功能与稳定路径并存，关闭的功能完全不进产物。</p>
+              <p>34 个 feature flag 由 <code>bun:bundle</code> 在构建期内联，不影响运行时性能。实验功能与稳定路径并存，关闭的功能完全不进产物。</p>
             </article>
             <article class="design-row">
               <h3>6. 文档即源码注释</h3>

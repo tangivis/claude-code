@@ -23,6 +23,7 @@ import { getDefaultCharacters, type SpinnerMode } from './Spinner/index.js';
 import { SpinnerAnimationRow } from './Spinner/SpinnerAnimationRow.js';
 import { useSettings } from '../hooks/useSettings.js';
 import { isInProcessTeammateTask } from '../tasks/InProcessTeammateTask/types.js';
+import { isLocalAgentTask } from '../tasks/LocalAgentTask/LocalAgentTask.js';
 import { isBackgroundTask } from '../tasks/types.js';
 import { getAllInProcessTeammateTasks } from '../tasks/InProcessTeammateTask/InProcessTeammateTask.js';
 import { getEffortSuffix } from '../utils/effort.js';
@@ -78,10 +79,8 @@ export function SpinnerWithVerb(props: Props): React.ReactNode {
   // teammate view needs the real spinner (which shows teammate status).
   const viewingAgentTaskId = useAppState(s => s.viewingAgentTaskId);
   // Hoisted to mount-time — this component re-renders at animation framerate.
-  const briefEnvEnabled =
-    feature('KAIROS') || feature('KAIROS_BRIEF')
-      ? useMemo(() => isEnvTruthy(process.env.CLAUDE_CODE_BRIEF), [])
-      : false;
+  const briefEnvEnabledRaw = useMemo(() => isEnvTruthy(process.env.CLAUDE_CODE_BRIEF), []);
+  const briefEnvEnabled = feature('KAIROS') || feature('KAIROS_BRIEF') ? briefEnvEnabledRaw : false;
 
   // Runtime gate mirrors isBriefEnabled() but inlined — importing from
   // BriefTool.ts would leak tool-name strings into external builds. Single
@@ -211,15 +210,22 @@ function SpinnerWithVerbInner({
   const hasRunningTeammates = runningTeammates.length > 0;
   const allIdle = hasRunningTeammates && runningTeammates.every(t => t.isIdle);
 
-  // Gather aggregate token stats from all running swarm teammates
-  // In spinner-tree mode, skip aggregation (teammates have their own lines in the tree)
+  // Gather aggregate token stats from all running agents.
+  // In spinner-tree mode, skip in-process teammates (they have their own
+  // per-teammate lines in the tree) but still count local-agent tasks
+  // (background agents) which have no dedicated tree rows.
   let teammateTokens = 0;
-  if (!showSpinnerTree) {
-    for (const task of Object.values(tasks)) {
-      if (isInProcessTeammateTask(task) && task.status === 'running') {
-        if (task.progress?.tokenCount) {
-          teammateTokens += task.progress.tokenCount;
-        }
+  for (const task of Object.values(tasks)) {
+    if (task.status !== 'running') continue;
+    if (isInProcessTeammateTask(task)) {
+      if (!showSpinnerTree && task.progress?.tokenCount) {
+        teammateTokens += task.progress.tokenCount;
+      }
+      continue;
+    }
+    if (isLocalAgentTask(task)) {
+      if (task.progress?.tokenCount) {
+        teammateTokens += task.progress.tokenCount;
       }
     }
   }

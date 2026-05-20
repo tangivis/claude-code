@@ -171,8 +171,8 @@ function getTeammateMailbox(): typeof import('./teammateMailbox.js') {
 
 import {
   isToolReferenceBlock,
-  isToolSearchEnabledOptimistic,
-} from './toolSearch.js'
+  isSearchExtraToolsEnabledOptimistic,
+} from './searchExtraTools.js'
 
 const MEMORY_CORRECTION_HINT =
   "\n\nNote: The user's next message may contain a correction or preference. Pay close attention — if they explain what went wrong or how they'd prefer you to work, consider saving that to memory for future sessions."
@@ -2058,7 +2058,7 @@ export function stripCallerFieldFromAssistantMessage(
 
 /**
  * Does the content array have a tool_result block whose inner content
- * contains tool_reference (ToolSearch loaded tools)?
+ * contains tool_reference (SearchExtraTools loaded tools)?
  */
 function contentHasToolReference(
   content: ReadonlyArray<ContentBlockParam>,
@@ -2387,7 +2387,7 @@ export function normalizeMessagesForAPI(
           // When tool search IS enabled, strip only tool_reference blocks for
           // tools that no longer exist (e.g., MCP server was disconnected).
           let normalizedMessage = message
-          if (!isToolSearchEnabledOptimistic()) {
+          if (!isSearchExtraToolsEnabledOptimistic()) {
             normalizedMessage = stripToolReferenceBlocksFromUserMessage(message)
           } else {
             normalizedMessage = stripUnavailableToolReferencesFromUserMessage(
@@ -2489,7 +2489,7 @@ export function normalizeMessagesForAPI(
           // When tool search is NOT enabled, we must strip tool_search-specific fields
           // like 'caller' from tool_use blocks, as these are only valid with the
           // tool search beta header
-          const toolSearchEnabled = isToolSearchEnabledOptimistic()
+          const searchExtraToolsEnabled = isSearchExtraToolsEnabledOptimistic()
           const normalizedMessage: AssistantMessage = {
             ...message,
             message: {
@@ -2513,7 +2513,7 @@ export function normalizeMessagesForAPI(
                   const canonicalName = tool?.name ?? toolUseBlk.name
 
                   // When tool search is enabled, preserve all fields including 'caller'
-                  if (toolSearchEnabled) {
+                  if (searchExtraToolsEnabled) {
                     return {
                       ...block,
                       name: canonicalName,
@@ -3586,7 +3586,7 @@ function getPlanModeV2Instructions(attachment: {
   const agentCount = getPlanModeV2AgentCount()
   const exploreAgentCount = getPlanModeV2ExploreAgentCount()
   const planFileInfo = attachment.planExists
-    ? `A plan file already exists at ${attachment.planFilePath}. You can read it and make incremental edits using the ${FileEditTool.name} tool.`
+    ? `A plan file already exists at ${attachment.planFilePath}. You MUST use ${FileReadTool.name} to read it first before making any changes. Make incremental edits using the ${FileEditTool.name} tool — do NOT overwrite the entire file unless the user explicitly asks for a complete rewrite.`
     : `No plan file exists yet. You should create your plan at ${attachment.planFilePath} using the ${FileWriteTool.name} tool.`
 
   const content = `Plan mode is active. The user indicated that they do not want you to execute yet -- you MUST NOT make any edits (with the exception of the plan file mentioned below), run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supercedes any other instructions you have received.
@@ -3603,10 +3603,10 @@ Goal: Gain a comprehensive understanding of the user's request by reading throug
 1. Focus on understanding the user's request and the code associated with their request. Actively search for existing functions, utilities, and patterns that can be reused — avoid proposing new code when suitable implementations already exist.
 
 2. **Launch up to ${exploreAgentCount} ${EXPLORE_AGENT.agentType} agents IN PARALLEL** (single message, multiple tool calls) to efficiently explore the codebase.
-   - Use 1 agent when the task is isolated to known files, the user provided specific file paths, or you're making a small targeted change.
+   - For tasks with well-known file targets, 1 agent may suffice. In most cases, prefer launching 2-3 agents with complementary search focuses to maximize coverage.
    - Use multiple agents when: the scope is uncertain, multiple areas of the codebase are involved, or you need to understand existing patterns before planning.
-   - Quality over quantity - ${exploreAgentCount} agents maximum, but you should try to use the minimum number of agents necessary (usually just 1)
-   - If using multiple agents: Provide each agent with a specific search focus or area to explore. Example: One agent searches for existing implementations, another explores related components, a third investigating testing patterns
+   - Quality over quantity - ${exploreAgentCount} agents maximum. Do NOT skip exploration — always use at least 1 Explore agent in Phase 1.
+   - When using multiple agents: Provide each agent with a specific search focus or area to explore. Example: One agent searches for existing implementations, another explores related components, a third investigates testing patterns
 
 ### Phase 2: Design
 Goal: Design an implementation approach.
@@ -3690,7 +3690,7 @@ function getPlanModeInterviewInstructions(attachment: {
   planExists?: boolean
 }): UserMessage[] {
   const planFileInfo = attachment.planExists
-    ? `A plan file already exists at ${attachment.planFilePath}. You can read it and make incremental edits using the ${FileEditTool.name} tool.`
+    ? `A plan file already exists at ${attachment.planFilePath}. You MUST use ${FileReadTool.name} to read it first before making any changes. Make incremental edits using the ${FileEditTool.name} tool — do NOT overwrite the entire file unless the user explicitly asks for a complete rewrite.`
     : `No plan file exists yet. You should create your plan at ${attachment.planFilePath} using the ${FileWriteTool.name} tool.`
 
   const content = `Plan mode is active. The user indicated that they do not want you to execute yet -- you MUST NOT make any edits (with the exception of the plan file mentioned below), run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supercedes any other instructions you have received.
@@ -3752,7 +3752,7 @@ function getPlanModeV2SparseInstructions(attachment: {
 }): UserMessage[] {
   const workflowDescription = isPlanModeInterviewPhaseEnabled()
     ? 'Follow iterative workflow: explore codebase, interview user, write to plan incrementally.'
-    : 'Follow 5-phase workflow.'
+    : `Follow 5-phase workflow. Phase 1: use ${EXPLORE_AGENT.agentType} agents for code exploration.`
 
   const content = `Plan mode still active (see full instructions earlier in conversation). Read-only except plan file (${attachment.planFilePath}). ${workflowDescription} End turns with ${ASK_USER_QUESTION_TOOL_NAME} (for clarifications) or ${ExitPlanModeV2Tool.name} (for plan approval). Never ask about plan approval via text or AskUserQuestion.`
 
@@ -3909,7 +3909,24 @@ Read the team config to discover your teammates' names. Check the task list peri
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- teammate_mailbox/team_context/skill_discovery/bagel_console handled above
+  // tool_discovery handled here (not in the switch) so the 'tool_discovery'
+  // string literal lives inside a feature()-guarded block.
+  if (feature('EXPERIMENTAL_SEARCH_EXTRA_TOOLS')) {
+    if (attachment.type === 'tool_discovery') {
+      if (attachment.tools.length === 0) return []
+      const lines = attachment.tools.map(
+        t => `- ${t.name}: ${t.description.slice(0, 100)}`,
+      )
+      return wrapMessagesInSystemReminder([
+        createUserMessage({
+          content: `The following tools were discovered as relevant to your task. To invoke them, you MUST use ExecuteExtraTool — this is the only way to call these tools. Do not read source code or reason about whether they are callable; just call ExecuteExtraTool({"tool_name": "<name>", "params": {...}}) directly.\n\n${lines.join('\n')}`,
+          isMeta: true,
+        }),
+      ])
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- teammate_mailbox/team_context/skill_discovery/tool_discovery/bagel_console handled above
   switch (attachment.type) {
     case 'directory': {
       return wrapMessagesInSystemReminder([
@@ -4576,12 +4593,12 @@ You have exited auto mode. The user may now want to interact more directly. You 
       const parts: string[] = []
       if (attachment.addedLines.length > 0) {
         parts.push(
-          `The following deferred tools are now available via ToolSearch:\n${attachment.addedLines.join('\n')}`,
+          `The following deferred tools are now available:\n${attachment.addedLines.join('\n')}\n\nTo use these tools, call SearchExtraTools then ExecuteExtraTool — both are core tools already in your tool list. Call them directly, do NOT use Bash/Glob to find them.`,
         )
       }
       if (attachment.removedNames.length > 0) {
         parts.push(
-          `The following deferred tools are no longer available (their MCP server disconnected). Do not search for them — ToolSearch will return no match:\n${attachment.removedNames.join('\n')}`,
+          `The following deferred tools are no longer available (their MCP server disconnected). Do not search for them — SearchExtraTools will return no match:\n${attachment.removedNames.join('\n')}`,
         )
       }
       return wrapMessagesInSystemReminder([

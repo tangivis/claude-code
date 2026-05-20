@@ -10,6 +10,7 @@ import type {
 import type { AgentId } from '../../../types/ids.js'
 import type { Tools } from '../../../Tool.js'
 import { getOpenAIClient } from './client.js'
+import { updateOpenAIUsage } from './openaiShared.js'
 import {
   anthropicMessagesToOpenAI,
   resolveOpenAIModel,
@@ -17,6 +18,13 @@ import {
   anthropicToolsToOpenAI,
   anthropicToolChoiceToOpenAI,
 } from '@ant/model-provider'
+import { isChatGPTAuthEnabled } from './chatgptAuth.js'
+import {
+  adaptResponsesStreamToAnthropic,
+  buildResponsesRequest,
+  createChatGPTResponsesStream,
+  type ResponsesReasoningEffort,
+} from './responsesAdapter.js'
 import { normalizeMessagesForAPI } from '../../../utils/messages.js'
 import { toolToAPISchema } from '../../../utils/api.js'
 import {
@@ -52,15 +60,37 @@ import {
 } from '../../../utils/messages.js'
 import type { SDKAssistantMessageError } from '../../../entrypoints/agentSdkTypes.js'
 import {
-  isToolSearchEnabled,
-  extractDiscoveredToolNames,
+  isSearchExtraToolsEnabled,
   isDeferredToolsDeltaEnabled,
-} from '../../../utils/toolSearch.js'
+} from '../../../utils/searchExtraTools.js'
 import {
   formatDeferredToolLine,
   isDeferredTool,
-  TOOL_SEARCH_TOOL_NAME,
-} from '@claude-code-best/builtin-tools/tools/ToolSearchTool/prompt.js'
+  SEARCH_EXTRA_TOOLS_TOOL_NAME,
+} from '@claude-code-best/builtin-tools/tools/SearchExtraToolsTool/prompt.js'
+
+function convertToResponsesReasoningEffort(
+  effortValue: unknown,
+): ResponsesReasoningEffort | undefined {
+  if (effortValue === 'low') return 'low'
+  if (effortValue === 'medium') return 'medium'
+  if (effortValue === 'high') return 'high'
+  if (effortValue === 'xhigh' || effortValue === 'max') return 'xhigh'
+  if (typeof effortValue === 'number') return 'high'
+  return undefined
+}
+
+function getChatGPTResponsesReasoningEffort(
+  effortValue: unknown,
+): ResponsesReasoningEffort | undefined {
+  const envOverride = process.env.CLAUDE_CODE_EFFORT_LEVEL?.toLowerCase()
+  if (envOverride === 'auto' || envOverride === 'unset') return undefined
+  return (
+    convertToResponsesReasoningEffort(envOverride) ??
+    convertToResponsesReasoningEffort(effortValue) ??
+    'medium'
+  )
+}
 
 /**
  * Mirrors the Anthropic request path's deferred-tool announcement for OpenAI.
@@ -68,15 +98,15 @@ import {
  * OpenAI-compatible endpoints cannot consume Anthropic's `defer_loading` or
  * `tool_reference` beta payloads directly, so the model needs the same textual
  * list of deferred MCP tool names that Anthropic receives before it can ask
- * ToolSearchTool to load their full schemas.
+ * SearchExtraToolsTool to load their full schemas.
  */
 function prependDeferredToolListIfNeeded(
   messages: (AssistantMessage | UserMessage)[],
   tools: Tools,
   deferredToolNames: Set<string>,
-  useToolSearch: boolean,
+  useSearchExtraTools: boolean,
 ): (AssistantMessage | UserMessage)[] {
-  if (!useToolSearch || isDeferredToolsDeltaEnabled()) return messages
+  if (!useSearchExtraTools || isDeferredToolsDeltaEnabled()) return messages
 
   const deferredToolList = tools
     .filter(tool => deferredToolNames.has(tool.name))
@@ -195,7 +225,7 @@ export async function* queryModelOpenAI(
     const messagesForAPI = normalizeMessagesForAPI(messages, tools)
 
     // 3. Check if tool search is enabled (similar to Anthropic path)
-    const useToolSearch = await isToolSearchEnabled(
+    const useSearchExtraTools = await isSearchExtraToolsEnabled(
       options.model,
       tools,
       options.getToolPermissionContext ||
@@ -206,24 +236,25 @@ export async function* queryModelOpenAI(
 
     // 4. Build deferred tools set (similar to Anthropic path)
     const deferredToolNames = new Set<string>()
-    if (useToolSearch) {
+    if (useSearchExtraTools) {
       for (const t of tools) {
         if (isDeferredTool(t)) deferredToolNames.add(t.name)
       }
     }
 
     // 5. Filter tools (similar to Anthropic path)
+    // Never include deferred tools in the API tools array — they are invoked
+    // via ExecuteExtraTool which looks them up from the global tool registry
+    // at runtime. Keeping the tools array stable preserves the prompt cache.
     let filteredTools = tools
-    if (useToolSearch && deferredToolNames.size > 0) {
-      const discoveredToolNames = extractDiscoveredToolNames(messages)
-
+    if (useSearchExtraTools && deferredToolNames.size > 0) {
       filteredTools = tools.filter(tool => {
         // Always include non-deferred tools
         if (!deferredToolNames.has(tool.name)) return true
-        // Always include ToolSearchTool (so it can discover more tools)
-        if (toolMatchesName(tool, TOOL_SEARCH_TOOL_NAME)) return true
-        // Only include deferred tools that have been discovered
-        return discoveredToolNames.has(tool.name)
+        // Always include SearchExtraToolsTool (so it can discover more tools)
+        if (toolMatchesName(tool, SEARCH_EXTRA_TOOLS_TOOL_NAME)) return true
+        // All other deferred tools are excluded — use ExecuteExtraTool instead
+        return false
       })
     }
 
@@ -236,7 +267,7 @@ export async function* queryModelOpenAI(
           agents: options.agents,
           allowedAgentTypes: options.allowedAgentTypes,
           model: options.model,
-          deferLoading: useToolSearch && deferredToolNames.has(tool.name),
+          deferLoading: useSearchExtraTools && deferredToolNames.has(tool.name),
         }),
       ),
     )
@@ -260,7 +291,7 @@ export async function* queryModelOpenAI(
       openAIConvertibleMessages,
       tools,
       deferredToolNames,
-      useToolSearch,
+      useSearchExtraTools,
     )
     const openaiMessages = anthropicMessagesToOpenAI(
       messagesWithDeferredToolList,
@@ -269,9 +300,12 @@ export async function* queryModelOpenAI(
     )
     const openaiTools = anthropicToolsToOpenAI(standardTools)
     const openaiToolChoice = anthropicToolChoiceToOpenAI(options.toolChoice)
+    const reasoningEffort = getChatGPTResponsesReasoningEffort(
+      options.effortValue,
+    )
 
     // 9. Log tool filtering details
-    if (useToolSearch) {
+    if (useSearchExtraTools) {
       const includedDeferredTools = filteredTools.filter(t =>
         deferredToolNames.has(t.name),
       ).length
@@ -307,32 +341,50 @@ export async function* queryModelOpenAI(
       options.maxOutputTokensOverride,
     )
 
-    // 11. Get client
-    const client = getOpenAIClient({
-      maxRetries: 0,
-      fetchOverride: options.fetchOverride as unknown as typeof fetch,
-      source: options.querySource,
-    })
-
     logForDebugging(
       `[OpenAI] Calling model=${openaiModel}, messages=${openaiMessages.length}, tools=${openaiTools.length}, thinking=${enableThinking}`,
     )
 
-    // 12. Call OpenAI API with streaming
-    const requestBody = buildOpenAIRequestBody({
-      model: openaiModel,
-      messages: openaiMessages,
-      tools: openaiTools,
-      toolChoice: openaiToolChoice,
-      enableThinking,
-      maxTokens,
-      temperatureOverride: options.temperatureOverride,
-    })
-    const stream = await client.chat.completions.create(requestBody, { signal })
+    // 11. Call OpenAI API with streaming. ChatGPT subscription auth uses the
+    // Codex Responses backend; API-key/OpenAI-compatible auth keeps the
+    // existing Chat Completions adapter.
+    const adaptedStream = isChatGPTAuthEnabled()
+      ? adaptResponsesStreamToAnthropic(
+          await createChatGPTResponsesStream({
+            request: buildResponsesRequest({
+              model: openaiModel,
+              messages: openaiMessages,
+              tools: openaiTools,
+              toolChoice: openaiToolChoice,
+              reasoningEffort,
+            }),
+            signal,
+            fetchOverride: options.fetchOverride as unknown as typeof fetch,
+          }),
+          openaiModel,
+        )
+      : adaptOpenAIStreamToAnthropic(
+          await getOpenAIClient({
+            maxRetries: 0,
+            fetchOverride: options.fetchOverride as unknown as typeof fetch,
+            source: options.querySource,
+          }).chat.completions.create(
+            buildOpenAIRequestBody({
+              model: openaiModel,
+              messages: openaiMessages,
+              tools: openaiTools,
+              toolChoice: openaiToolChoice,
+              enableThinking,
+              maxTokens,
+              temperatureOverride: options.temperatureOverride,
+            }),
+            { signal },
+          ),
+          openaiModel,
+        )
 
     // 12. Convert OpenAI stream to Anthropic events, then process into
     //     AssistantMessage + StreamEvent (matching the Anthropic path behavior)
-    const adaptedStream = adaptOpenAIStreamToAnthropic(stream, openaiModel)
 
     // Accumulate content blocks and usage, same as the Anthropic path in claude.ts
     const contentBlocks: Record<number, any> = {}
@@ -398,7 +450,7 @@ export async function* queryModelOpenAI(
         case 'message_delta': {
           const deltaUsage = (event as any).usage
           if (deltaUsage) {
-            usage = { ...usage, ...deltaUsage }
+            usage = updateOpenAIUsage(usage, deltaUsage)
           }
           if ((event as any).delta?.stop_reason != null) {
             stopReason = (event as any).delta.stop_reason

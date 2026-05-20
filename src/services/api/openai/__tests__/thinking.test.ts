@@ -1,8 +1,26 @@
-import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
+import { describe, expect, test, beforeEach, afterEach, mock } from 'bun:test'
 import {
   isOpenAIThinkingEnabled,
   buildOpenAIRequestBody,
 } from '../requestBody.js'
+
+// Re-register envUtils.js with correct isEnvDefinedFalsy and isEnvTruthy to
+// override pollution from other test files (debug-tool-call, issue,
+// break-cache, MagicDocs/prompts, SessionMemory/prompts, cacheStats) that
+// mock this module without exporting isEnvDefinedFalsy.
+mock.module('src/utils/envUtils.js', () => ({
+  isEnvTruthy: (v: string | boolean | undefined): boolean => {
+    if (!v) return false
+    if (typeof v === 'boolean') return v
+    return ['1', 'true', 'yes', 'on'].includes(v.toLowerCase().trim())
+  },
+  isEnvDefinedFalsy: (v: string | boolean | undefined): boolean => {
+    if (v === undefined) return false
+    if (typeof v === 'boolean') return !v
+    if (!v) return false
+    return ['0', 'false', 'no', 'off'].includes(v.toLowerCase().trim())
+  },
+}))
 
 describe('isOpenAIThinkingEnabled', () => {
   const originalEnv = {
@@ -129,6 +147,22 @@ describe('isOpenAIThinkingEnabled', () => {
       expect(isOpenAIThinkingEnabled('deepseek-coder')).toBe(true)
     })
 
+    test('returns true when model name is "mimo-v2-flash"', () => {
+      expect(isOpenAIThinkingEnabled('mimo-v2-flash')).toBe(true)
+    })
+
+    test('returns true when model name is "mimo-v2-pro"', () => {
+      expect(isOpenAIThinkingEnabled('mimo-v2-pro')).toBe(true)
+    })
+
+    test('returns true when model name is "mimo-v2.5-pro"', () => {
+      expect(isOpenAIThinkingEnabled('mimo-v2.5-pro')).toBe(true)
+    })
+
+    test('returns true when model name contains "mimo"', () => {
+      expect(isOpenAIThinkingEnabled('MiMo-V2-Omni')).toBe(true)
+    })
+
     test('returns false when model name is "gpt-4o"', () => {
       expect(isOpenAIThinkingEnabled('gpt-4o')).toBe(false)
     })
@@ -179,7 +213,10 @@ describe('buildOpenAIRequestBody — thinking params', () => {
   test('includes vLLM/self-hosted thinking format when enabled', () => {
     const body = buildOpenAIRequestBody({ ...baseParams, enableThinking: true })
     expect(body.enable_thinking).toBe(true)
-    expect(body.chat_template_kwargs).toEqual({ thinking: true })
+    expect(body.chat_template_kwargs).toEqual({
+      thinking: true,
+      enable_thinking: true,
+    })
   })
 
   test('includes both formats simultaneously when enabled', () => {

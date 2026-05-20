@@ -39,7 +39,8 @@ type Props = {
 export function AttachmentMessage({ attachment, addMargin, verbose, isTranscriptMode }: Props): React.ReactNode {
   const bg = useSelectedMessageBg();
   // Hoisted to mount-time — per-message component, re-renders on every scroll.
-  const isDemoEnv = feature('EXPERIMENTAL_SKILL_SEARCH') ? useMemo(() => isEnvTruthy(process.env.IS_DEMO), []) : false;
+  const isDemoEnvRaw = useMemo(() => isEnvTruthy(process.env.IS_DEMO), []);
+  const isDemoEnv = feature('EXPERIMENTAL_SKILL_SEARCH') ? isDemoEnvRaw : false;
   // Handle teammate_mailbox BEFORE switch
   if (isAgentSwarmsEnabled() && attachment.type === 'teammate_mailbox') {
     // Filter out idle notifications BEFORE counting - they are hidden in the UI
@@ -137,7 +138,22 @@ export function AttachmentMessage({ attachment, addMargin, verbose, isTranscript
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- teammate_mailbox/skill_discovery handled before switch
+  // tool_discovery rendered here (not in the switch) so the 'tool_discovery'
+  // string literal stays inside a feature()-guarded block.
+  if (feature('EXPERIMENTAL_SEARCH_EXTRA_TOOLS')) {
+    if (attachment.type === 'tool_discovery') {
+      if (attachment.tools.length === 0) return null;
+      const names = attachment.tools.map(t => t.name).join(', ');
+      return (
+        <Line>
+          <Text dimColor>Discovered tools: </Text>
+          <Text>{names}</Text>
+        </Line>
+      );
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- teammate_mailbox/skill_discovery/tool_discovery handled before switch
   switch (attachment.type) {
     case 'directory':
       return (
@@ -395,7 +411,12 @@ export function AttachmentMessage({ attachment, addMargin, verbose, isTranscript
       // skill_discovery and teammate_mailbox are handled BEFORE the switch in
       // runtime-gated blocks (feature() / isAgentSwarmsEnabled()) that TS can't
       // narrow through — excluded here via type union (compile-time only, no emit).
-      attachment.type satisfies NullRenderingAttachmentType | 'skill_discovery' | 'teammate_mailbox' | 'bagel_console';
+      attachment.type satisfies
+        | NullRenderingAttachmentType
+        | 'skill_discovery'
+        | 'tool_discovery'
+        | 'teammate_mailbox'
+        | 'bagel_console';
       return null;
   }
 }

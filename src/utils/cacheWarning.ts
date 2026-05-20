@@ -1,4 +1,4 @@
-import { createUserMessage } from './messages.js'
+import { randomUUID } from 'crypto'
 import { getInitialSettings } from './settings/settings.js'
 import type { Message } from '../types/message.js'
 
@@ -23,6 +23,12 @@ interface CacheWarningState {
 
 // 模块级状态，每个 querySource 独立跟踪
 const cacheWarningStateBySource = new Map<string, CacheWarningState>()
+
+// Limit the number of tracked sources to prevent unbounded Map growth.
+// querySource strings are effectively unbounded (typed as `any`), so a
+// long-running session that spawns many subagents could leak memory.
+// Evict the oldest entry (by insertion order) when the limit is exceeded.
+const MAX_SOURCE_ENTRIES = 50
 
 const DEFAULT_CACHE_THRESHOLD = 80
 
@@ -81,6 +87,13 @@ export function shouldShowCacheWarning(
   let state = cacheWarningStateBySource.get(querySource)
   if (!state) {
     state = { lastHitRate: null, lastTimestamp: null }
+    // Evict oldest entry when at capacity so the Map stays bounded
+    if (cacheWarningStateBySource.size >= MAX_SOURCE_ENTRIES) {
+      const oldestKey = cacheWarningStateBySource.keys().next().value
+      if (oldestKey !== undefined) {
+        cacheWarningStateBySource.delete(oldestKey)
+      }
+    }
     cacheWarningStateBySource.set(querySource, state)
   }
 
@@ -109,12 +122,11 @@ export function shouldShowCacheWarning(
 /**
  * 生成缓存警告消息
  * @param info 缓存警告信息
- * @returns 用户消息，标记为 isVisibleInTranscriptOnly
+ * @returns system 类型消息，在 REPL 主界面和 transcript 模式下可见
  */
 export function createCacheWarningMessage(info: CacheHitRateInfo): Message {
   const { hitRate, threshold, trend } = info
 
-  // 构建消息内容
   let content = `Cache hit rate ${hitRate.toFixed(0)}%, below ${threshold}% threshold`
 
   if (trend !== null && Math.abs(trend) > 0.1) {
@@ -123,9 +135,20 @@ export function createCacheWarningMessage(info: CacheHitRateInfo): Message {
     content += ` (${trendIcon}${trendPercent}%)`
   }
 
-  return createUserMessage({
+  return {
+    type: 'system',
+    subtype: 'cache_warning',
+    level: 'warning' as const,
     content,
-    isMeta: true,
-    isVisibleInTranscriptOnly: true,
-  })
+    timestamp: new Date().toISOString(),
+    uuid: randomUUID(),
+    isMeta: false,
+  } as Message
+}
+
+/**
+ * Reset the per-source tracking state — only used in tests.
+ */
+export function _resetCacheWarningStateForTest(): void {
+  cacheWarningStateBySource.clear()
 }
